@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import logoImg from '@/assets/logo.png';
 
 import type { AppRole } from '@/types/database';
 
@@ -78,13 +79,11 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b border-border">
+      <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-            B
-          </div>
+          <img src={logoImg} alt="Bethel" className="h-8 w-8 object-contain" />
           {!collapsed && (
-            <span className="text-lg font-semibold text-foreground">Bethel SDR</span>
+            <span className="text-lg font-semibold text-sidebar-foreground">Bethel SDR</span>
           )}
         </div>
       </SidebarHeader>
