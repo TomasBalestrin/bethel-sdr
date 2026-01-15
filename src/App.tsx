@@ -7,16 +7,14 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Dashboard from "./pages/Dashboard";
+import Leads from "./pages/Leads";
+import CRM from "./pages/CRM";
+import Calendario from "./pages/Calendario";
+import Relatorios from "./pages/Relatorios";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
-
-// Placeholder pages - will be implemented next
-const Dashboard = () => <div className="p-8"><h1 className="text-2xl font-bold">Dashboard</h1><p className="text-muted-foreground mt-2">Em construção...</p></div>;
-const Leads = () => <div className="p-8"><h1 className="text-2xl font-bold">Leads</h1><p className="text-muted-foreground mt-2">Em construção...</p></div>;
-const CRM = () => <div className="p-8"><h1 className="text-2xl font-bold">CRM Agendamentos</h1><p className="text-muted-foreground mt-2">Em construção...</p></div>;
-const Calendario = () => <div className="p-8"><h1 className="text-2xl font-bold">Calendário</h1><p className="text-muted-foreground mt-2">Em construção...</p></div>;
-const Relatorios = () => <div className="p-8"><h1 className="text-2xl font-bold">Relatórios</h1><p className="text-muted-foreground mt-2">Em construção...</p></div>;
-const Admin = () => <div className="p-8"><h1 className="text-2xl font-bold">Painel Admin</h1><p className="text-muted-foreground mt-2">Em construção...</p></div>;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
