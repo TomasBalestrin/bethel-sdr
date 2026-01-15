@@ -1,19 +1,67 @@
 import { useState } from 'react';
-import { Search, Filter, Users } from 'lucide-react';
+import { Search, Filter, Users, Upload } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClassificationBadge, LeadStatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { useLeads } from '@/hooks/useLeads';
+import { useLeads, useUpdateLead } from '@/hooks/useLeads';
+import { useFunnels } from '@/hooks/useFunnels';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ImportCSVModal } from '@/components/leads/ImportCSVModal';
+import { LeadDetailsSheet } from '@/components/leads/LeadDetailsSheet';
+import { Database } from '@/integrations/supabase/types';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Label } from '@/components/ui/label';
+
+type Lead = Database['public']['Tables']['leads']['Row'] & {
+  funnel?: { name: string } | null;
+  assigned_sdr?: { name: string } | null;
+};
 
 export default function Leads() {
   const [search, setSearch] = useState('');
-  const { data: leads, isLoading } = useLeads({ search: search || undefined });
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [classificationFilter, setClassificationFilter] = useState<string>('');
+  const [funnelFilter, setFunnelFilter] = useState<string>('');
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
+  const { data: leads, isLoading } = useLeads({ 
+    search: search || undefined,
+    status: statusFilter ? [statusFilter as any] : undefined,
+    classification: classificationFilter ? [classificationFilter as any] : undefined,
+    funnelId: funnelFilter || undefined,
+  });
+  const { data: funnels } = useFunnels();
+  const updateLead = useUpdateLead();
+
+  const handleRowClick = (lead: Lead) => {
+    setSelectedLead(lead);
+    setDetailsOpen(true);
+  };
+
+  const handleStartAttendance = async () => {
+    if (!selectedLead) return;
+    await updateLead.mutateAsync({
+      id: selectedLead.id,
+      status: 'em_atendimento',
+    });
+    setDetailsOpen(false);
+  };
+
+  const clearFilters = () => {
+    setStatusFilter('');
+    setClassificationFilter('');
+    setFunnelFilter('');
+  };
+
+  const hasFilters = statusFilter || classificationFilter || funnelFilter;
 
   return (
     <AppLayout>
@@ -23,6 +71,10 @@ export default function Leads() {
             <h1 className="text-2xl font-bold text-foreground">Leads</h1>
             <p className="text-muted-foreground">Gerencie seus leads</p>
           </div>
+          <Button onClick={() => setImportModalOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Importar CSV
+          </Button>
         </div>
 
         <div className="flex gap-4">
@@ -35,10 +87,77 @@ export default function Leads() {
               className="pl-10"
             />
           </div>
-          <Button variant="outline">
-            <Filter className="mr-2 h-4 w-4" />
-            Filtros
-          </Button>
+          
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="relative">
+                <Filter className="mr-2 h-4 w-4" />
+                Filtros
+                {hasFilters && (
+                  <span className="absolute -top-1 -right-1 h-3 w-3 bg-primary rounded-full" />
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="novo">Novo</SelectItem>
+                      <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
+                      <SelectItem value="agendado">Agendado</SelectItem>
+                      <SelectItem value="convertido">Convertido</SelectItem>
+                      <SelectItem value="perdido">Perdido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Classificação</Label>
+                  <Select value={classificationFilter} onValueChange={setClassificationFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todas</SelectItem>
+                      <SelectItem value="diamante">Diamante</SelectItem>
+                      <SelectItem value="ouro">Ouro</SelectItem>
+                      <SelectItem value="prata">Prata</SelectItem>
+                      <SelectItem value="bronze">Bronze</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Funil</Label>
+                  <Select value={funnelFilter} onValueChange={setFunnelFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todos os funis" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Todos</SelectItem>
+                      {funnels?.map(funnel => (
+                        <SelectItem key={funnel.id} value={funnel.id}>
+                          {funnel.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {hasFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="w-full">
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {isLoading ? (
@@ -62,7 +181,11 @@ export default function Leads() {
               </TableHeader>
               <TableBody>
                 {leads.map((lead) => (
-                  <TableRow key={lead.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableRow 
+                    key={lead.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleRowClick(lead as Lead)}
+                  >
                     <TableCell className="font-medium">{lead.full_name}</TableCell>
                     <TableCell>{lead.phone || '-'}</TableCell>
                     <TableCell>
@@ -71,7 +194,7 @@ export default function Leads() {
                     <TableCell>
                       <LeadStatusBadge status={lead.status} />
                     </TableCell>
-                    <TableCell>{(lead as any).funnel?.name || '-'}</TableCell>
+                    <TableCell>{(lead as Lead).funnel?.name || '-'}</TableCell>
                     <TableCell>
                       {format(new Date(lead.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                     </TableCell>
@@ -88,6 +211,15 @@ export default function Leads() {
           />
         )}
       </div>
+
+      <ImportCSVModal open={importModalOpen} onOpenChange={setImportModalOpen} />
+      
+      <LeadDetailsSheet
+        lead={selectedLead}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        onStartAttendance={handleStartAttendance}
+      />
     </AppLayout>
   );
 }

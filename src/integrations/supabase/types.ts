@@ -338,6 +338,7 @@ export type Database = {
             | Database["public"]["Enums"]["lead_classification"]
             | null
           created_at: string
+          crm_column_id: string | null
           custom_fields: Json | null
           difficulty: string | null
           email: string | null
@@ -360,6 +361,7 @@ export type Database = {
             | Database["public"]["Enums"]["lead_classification"]
             | null
           created_at?: string
+          crm_column_id?: string | null
           custom_fields?: Json | null
           difficulty?: string | null
           email?: string | null
@@ -382,6 +384,7 @@ export type Database = {
             | Database["public"]["Enums"]["lead_classification"]
             | null
           created_at?: string
+          crm_column_id?: string | null
           custom_fields?: Json | null
           difficulty?: string | null
           email?: string | null
@@ -405,6 +408,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "leads_crm_column_id_fkey"
+            columns: ["crm_column_id"]
+            isOneToOne: false
+            referencedRelation: "crm_columns"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "leads_funnel_id_fkey"

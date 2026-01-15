@@ -1,11 +1,17 @@
+import { useState } from 'react';
 import { Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatsCard } from '@/components/shared/StatsCard';
 import { useLeadsStats } from '@/hooks/useLeads';
 import { useAppointmentStats } from '@/hooks/useAppointments';
 import { Skeleton } from '@/components/ui/skeleton';
+import { LeadsEvolutionChart } from '@/components/dashboard/LeadsEvolutionChart';
+import { ConversionFunnelChart } from '@/components/dashboard/ConversionFunnelChart';
+import { PerformanceByFunnelChart } from '@/components/dashboard/PerformanceByFunnelChart';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Dashboard() {
+  const [period, setPeriod] = useState<string>('30');
   const { data: leadsStats, isLoading: leadsLoading } = useLeadsStats();
   const { data: appointmentsStats, isLoading: appointmentsLoading } = useAppointmentStats();
 
@@ -14,9 +20,21 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground">Visão geral do sistema</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground">Visão geral do sistema</p>
+          </div>
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {isLoading ? (
@@ -52,6 +70,15 @@ export default function Dashboard() {
             />
           </div>
         )}
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <LeadsEvolutionChart days={parseInt(period)} />
+          <ConversionFunnelChart />
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <PerformanceByFunnelChart />
+        </div>
       </div>
     </AppLayout>
   );
