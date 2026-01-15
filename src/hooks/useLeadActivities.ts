@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { LeadActivity } from '@/types/database';
+import type { Json } from '@/integrations/supabase/types';
 import { toast } from 'sonner';
 import { useAuth } from './useAuth';
 
@@ -12,7 +13,7 @@ export function useLeadActivities(leadId: string) {
         .from('lead_activities')
         .select(`
           *,
-          user:profiles!lead_activities_user_id_fkey(id, name),
+          user:profiles!lead_activities_user_profile_fkey(id, name),
           column:crm_columns(id, name, color)
         `)
         .eq('lead_id', leadId)
@@ -36,7 +37,7 @@ export function useCreateLeadActivity() {
       action_type: string; 
       notes?: string | null;
       tags?: string[];
-      details?: Record<string, unknown>;
+      details?: Json;
     }) => {
       const { data, error } = await supabase
         .from('lead_activities')
@@ -46,7 +47,7 @@ export function useCreateLeadActivity() {
           action_type: activity.action_type,
           notes: activity.notes || null,
           tags: activity.tags || [],
-          details: activity.details || {},
+          details: activity.details ?? {},
           user_id: user?.id,
         }])
         .select()

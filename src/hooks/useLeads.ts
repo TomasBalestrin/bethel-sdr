@@ -20,7 +20,7 @@ export function useLeads(filters?: LeadsFilters) {
         .select(`
           *,
           funnel:funnels(id, name),
-          assigned_sdr:profiles!leads_assigned_sdr_id_fkey(id, name, email)
+          assigned_sdr:profiles!leads_assigned_sdr_profile_fkey(id, name, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -61,7 +61,7 @@ export function useLead(id: string) {
         .select(`
           *,
           funnel:funnels(id, name),
-          assigned_sdr:profiles!leads_assigned_sdr_id_fkey(id, name, email)
+          assigned_sdr:profiles!leads_assigned_sdr_profile_fkey(id, name, email)
         `)
         .eq('id', id)
         .single();
