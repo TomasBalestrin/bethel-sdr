@@ -167,7 +167,7 @@ export default function Auth() {
       <div className="hidden lg:flex lg:w-1/2 bg-primary p-12 flex-col justify-between">
         <div>
           <h1 className="text-3xl font-bold text-primary-foreground">
-            Sistema de Agendamento SDR
+            Bethel SDR
           </h1>
           <p className="mt-2 text-primary-foreground/80">
             Gestão completa de leads e agendamentos para equipes de vendas
@@ -213,7 +213,7 @@ export default function Auth() {
         </div>
 
         <p className="text-sm text-primary-foreground/60">
-          © 2026 Sistema de Agendamento SDR
+          © 2026 Bethel SDR
         </p>
       </div>
 
