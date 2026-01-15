@@ -20,8 +20,8 @@ export function useAppointments(filters?: AppointmentsFilters) {
         .select(`
           *,
           lead:leads(id, full_name, phone, email, classification),
-          sdr:profiles!appointments_sdr_id_fkey(id, name, email),
-          closer:profiles!appointments_closer_id_fkey(id, name, email),
+          sdr:profiles!appointments_sdr_profile_fkey(id, name, email),
+          closer:profiles!appointments_closer_profile_fkey(id, name, email),
           funnel:funnels(id, name)
         `)
         .order('scheduled_date', { ascending: true });
@@ -63,8 +63,8 @@ export function useAppointment(id: string) {
         .select(`
           *,
           lead:leads(id, full_name, phone, email, classification, qualification),
-          sdr:profiles!appointments_sdr_id_fkey(id, name, email),
-          closer:profiles!appointments_closer_id_fkey(id, name, email),
+          sdr:profiles!appointments_sdr_profile_fkey(id, name, email),
+          closer:profiles!appointments_closer_profile_fkey(id, name, email),
           funnel:funnels(id, name)
         `)
         .eq('id', id)
