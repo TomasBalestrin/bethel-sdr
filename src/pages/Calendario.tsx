@@ -1,25 +1,35 @@
 import { useState } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Grid3X3, List } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useUsersByRole } from '@/hooks/useUsers';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from 'date-fns';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { WeeklyCalendarGrid } from '@/components/calendar/WeeklyCalendarGrid';
+import { MonthlyCalendarGrid } from '@/components/calendar/MonthlyCalendarGrid';
 import { AppointmentDetailsModal } from '@/components/calendar/AppointmentDetailsModal';
+
+type ViewMode = 'weekly' | 'monthly';
 
 export default function Calendario() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedCloserId, setSelectedCloserId] = useState<string>('all');
   const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  
-  const startDate = startOfWeek(currentDate, { weekStartsOn: 1 });
-  const endDate = endOfWeek(currentDate, { weekStartsOn: 1 });
+  const [viewMode, setViewMode] = useState<ViewMode>('weekly');
+
+  // Calculate date range based on view mode
+  const startDate = viewMode === 'weekly' 
+    ? startOfWeek(currentDate, { weekStartsOn: 1 })
+    : startOfMonth(currentDate);
+  const endDate = viewMode === 'weekly'
+    ? endOfWeek(currentDate, { weekStartsOn: 1 })
+    : endOfMonth(currentDate);
 
   const { data: closers } = useUsersByRole('closer');
 
@@ -38,6 +48,29 @@ export default function Calendario() {
     setCurrentDate(new Date());
   };
 
+  const navigatePrevious = () => {
+    if (viewMode === 'weekly') {
+      setCurrentDate(subWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(subMonths(currentDate, 1));
+    }
+  };
+
+  const navigateNext = () => {
+    if (viewMode === 'weekly') {
+      setCurrentDate(addWeeks(currentDate, 1));
+    } else {
+      setCurrentDate(addMonths(currentDate, 1));
+    }
+  };
+
+  const getDateRangeLabel = () => {
+    if (viewMode === 'weekly') {
+      return `${format(startDate, "dd 'de' MMM", { locale: ptBR })} - ${format(endDate, "dd 'de' MMM", { locale: ptBR })}`;
+    }
+    return format(currentDate, "MMMM 'de' yyyy", { locale: ptBR });
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -48,6 +81,23 @@ export default function Calendario() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2">
+            {/* View mode toggle */}
+            <ToggleGroup 
+              type="single" 
+              value={viewMode} 
+              onValueChange={(value) => value && setViewMode(value as ViewMode)}
+              className="bg-muted rounded-lg p-1"
+            >
+              <ToggleGroupItem value="weekly" aria-label="Visão semanal" className="h-8 px-3 data-[state=on]:bg-background">
+                <List className="h-4 w-4 mr-1" />
+                <span className="text-xs">Semanal</span>
+              </ToggleGroupItem>
+              <ToggleGroupItem value="monthly" aria-label="Visão mensal" className="h-8 px-3 data-[state=on]:bg-background">
+                <Grid3X3 className="h-4 w-4 mr-1" />
+                <span className="text-xs">Mensal</span>
+              </ToggleGroupItem>
+            </ToggleGroup>
+
             {/* Closer filter */}
             <Select value={selectedCloserId} onValueChange={setSelectedCloserId}>
               <SelectTrigger className="w-[180px]">
@@ -68,13 +118,13 @@ export default function Calendario() {
               <Button variant="outline" size="sm" onClick={goToToday}>
                 Hoje
               </Button>
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(subWeeks(currentDate, 1))}>
+              <Button variant="outline" size="icon" onClick={navigatePrevious}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="font-medium min-w-[200px] text-center text-sm">
-                {format(startDate, "dd 'de' MMM", { locale: ptBR })} - {format(endDate, "dd 'de' MMM", { locale: ptBR })}
+              <span className="font-medium min-w-[200px] text-center text-sm capitalize">
+                {getDateRangeLabel()}
               </span>
-              <Button variant="outline" size="icon" onClick={() => setCurrentDate(addWeeks(currentDate, 1))}>
+              <Button variant="outline" size="icon" onClick={navigateNext}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -84,11 +134,19 @@ export default function Calendario() {
         {isLoading ? (
           <Skeleton className="h-[600px] w-full" />
         ) : appointments && appointments.length > 0 ? (
-          <WeeklyCalendarGrid
-            startDate={startDate}
-            appointments={appointments}
-            onAppointmentClick={handleAppointmentClick}
-          />
+          viewMode === 'weekly' ? (
+            <WeeklyCalendarGrid
+              startDate={startDate}
+              appointments={appointments}
+              onAppointmentClick={handleAppointmentClick}
+            />
+          ) : (
+            <MonthlyCalendarGrid
+              currentDate={currentDate}
+              appointments={appointments}
+              onAppointmentClick={handleAppointmentClick}
+            />
+          )
         ) : (
           <EmptyState
             icon={CalendarIcon}
