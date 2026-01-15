@@ -202,6 +202,62 @@ export type Database = {
         }
         Relationships: []
       }
+      distribution_rules: {
+        Row: {
+          active: boolean | null
+          classifications: string[] | null
+          created_at: string | null
+          created_by: string | null
+          funnel_id: string | null
+          id: string
+          max_leads_per_sdr: number | null
+          name: string
+          schedule_days: number[] | null
+          schedule_enabled: boolean | null
+          schedule_time: string | null
+          sdr_ids: string[]
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          classifications?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          funnel_id?: string | null
+          id?: string
+          max_leads_per_sdr?: number | null
+          name: string
+          schedule_days?: number[] | null
+          schedule_enabled?: boolean | null
+          schedule_time?: string | null
+          sdr_ids: string[]
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          classifications?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          funnel_id?: string | null
+          id?: string
+          max_leads_per_sdr?: number | null
+          name?: string
+          schedule_days?: number[] | null
+          schedule_enabled?: boolean | null
+          schedule_time?: string | null
+          sdr_ids?: string[]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "distribution_rules_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       funnels: {
         Row: {
           active: boolean
@@ -295,31 +351,43 @@ export type Database = {
       }
       lead_distribution_logs: {
         Row: {
+          classifications: string[] | null
           created_at: string
           distributed_by: string | null
           distribution_mode: string
           funnel_id: string | null
           id: string
+          lead_ids: string[] | null
           leads_count: number
+          rule_id: string | null
           sdr_ids: string[]
+          workload_snapshot: Json | null
         }
         Insert: {
+          classifications?: string[] | null
           created_at?: string
           distributed_by?: string | null
           distribution_mode: string
           funnel_id?: string | null
           id?: string
+          lead_ids?: string[] | null
           leads_count: number
+          rule_id?: string | null
           sdr_ids: string[]
+          workload_snapshot?: Json | null
         }
         Update: {
+          classifications?: string[] | null
           created_at?: string
           distributed_by?: string | null
           distribution_mode?: string
           funnel_id?: string | null
           id?: string
+          lead_ids?: string[] | null
           leads_count?: number
+          rule_id?: string | null
           sdr_ids?: string[]
+          workload_snapshot?: Json | null
         }
         Relationships: [
           {
@@ -327,6 +395,13 @@ export type Database = {
             columns: ["funnel_id"]
             isOneToOne: false
             referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_distribution_logs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "distribution_rules"
             referencedColumns: ["id"]
           },
         ]

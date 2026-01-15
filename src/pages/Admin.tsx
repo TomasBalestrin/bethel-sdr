@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Workflow, Columns, Pencil, Trash2, Plus } from 'lucide-react';
+import { Users, Workflow, Columns, Pencil, Trash2, Plus, Share2 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,6 +14,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { UserFormModal } from '@/components/admin/UserFormModal';
 import { FunnelFormModal } from '@/components/admin/FunnelFormModal';
 import { CRMColumnFormModal } from '@/components/admin/CRMColumnFormModal';
+import { DistributionRulesTab } from '@/components/admin/DistributionRulesTab';
 import type { ProfileWithRole, Funnel, CrmColumn } from '@/types/database';
 
 export default function Admin() {
@@ -114,6 +115,10 @@ export default function Admin() {
             <TabsTrigger value="columns" className="gap-2">
               <Columns className="h-4 w-4" />
               Colunas CRM
+            </TabsTrigger>
+            <TabsTrigger value="distribution" className="gap-2">
+              <Share2 className="h-4 w-4" />
+              Distribuição
             </TabsTrigger>
           </TabsList>
 
@@ -316,6 +321,11 @@ export default function Admin() {
                 </Table>
               </div>
             )}
+          </TabsContent>
+
+          {/* Distribution Tab */}
+          <TabsContent value="distribution">
+            <DistributionRulesTab />
           </TabsContent>
         </Tabs>
       </div>
