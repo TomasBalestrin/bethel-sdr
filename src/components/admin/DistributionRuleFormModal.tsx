@@ -124,16 +124,22 @@ export function DistributionRuleFormModal({
   }, [rule, sdrs, form]);
 
   const onSubmit = async (values: FormValues) => {
-    const data = {
-      ...values,
+    const payload = {
+      name: values.name,
+      sdr_ids: values.sdr_ids,
       funnel_id: values.funnel_id === 'all' ? null : values.funnel_id,
-      created_by: null,
+      classifications: values.classifications,
+      max_leads_per_sdr: values.max_leads_per_sdr,
+      active: values.active,
+      schedule_enabled: values.schedule_enabled,
+      schedule_days: values.schedule_days,
+      schedule_time: values.schedule_time,
     };
 
     if (rule) {
-      await updateRule.mutateAsync({ id: rule.id, ...data });
+      await updateRule.mutateAsync({ id: rule.id, ...payload });
     } else {
-      await createRule.mutateAsync(data);
+      await createRule.mutateAsync(payload);
     }
     onOpenChange(false);
   };
