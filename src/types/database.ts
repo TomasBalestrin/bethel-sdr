@@ -155,11 +155,21 @@ export interface LeadWithRelations extends Lead {
   assigned_sdr?: Profile | null;
 }
 
+// Simplified lead info for appointments
+export interface LeadBasicInfo {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  classification: LeadClassification;
+  qualification?: string | null;
+}
+
 export interface AppointmentWithRelations extends Appointment {
-  lead?: Lead | null;
-  sdr?: Profile | null;
-  closer?: Profile | null;
-  funnel?: Funnel | null;
+  lead?: LeadBasicInfo | null;
+  sdr?: Pick<Profile, 'id' | 'name' | 'email'> | null;
+  closer?: Pick<Profile, 'id' | 'name' | 'email'> | null;
+  funnel?: Pick<Funnel, 'id' | 'name'> | null;
 }
 
 export interface ProfileWithRole extends Profile {
