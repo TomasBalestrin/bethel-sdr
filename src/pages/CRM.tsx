@@ -4,10 +4,13 @@ import { useCRMColumns } from '@/hooks/useCRMColumns';
 import { useLeads } from '@/hooks/useLeads';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { KanbanBoard } from '@/components/crm/KanbanBoard';
 
 export default function CRM() {
   const { data: columns, isLoading: columnsLoading } = useCRMColumns();
-  const { data: leads, isLoading: leadsLoading } = useLeads({ status: ['em_atendimento', 'agendado'] });
+  const { data: leads, isLoading: leadsLoading } = useLeads({ 
+    status: ['em_atendimento', 'agendado'] 
+  });
 
   const isLoading = columnsLoading || leadsLoading;
 
@@ -26,28 +29,10 @@ export default function CRM() {
             ))}
           </div>
         ) : columns && columns.length > 0 ? (
-          <div className="flex gap-4 overflow-x-auto pb-4">
-            {columns.map((column) => (
-              <div
-                key={column.id}
-                className="flex-shrink-0 w-72 bg-muted/30 rounded-lg p-4"
-              >
-                <div className="flex items-center gap-2 mb-4">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: column.color }}
-                  />
-                  <h3 className="font-semibold text-foreground">{column.name}</h3>
-                  <span className="text-xs text-muted-foreground ml-auto">0</span>
-                </div>
-                <div className="space-y-2 min-h-[200px]">
-                  <p className="text-sm text-muted-foreground text-center py-8">
-                    Arraste leads aqui
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <KanbanBoard 
+            columns={columns} 
+            leads={(leads || []) as any} 
+          />
         ) : (
           <EmptyState
             icon={Kanban}
