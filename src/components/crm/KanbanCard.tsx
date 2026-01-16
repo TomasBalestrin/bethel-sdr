@@ -1,10 +1,11 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Phone, Clock, Calendar } from 'lucide-react';
+import { Phone, Clock, Briefcase, GripVertical } from 'lucide-react';
 import { ClassificationBadge } from '@/components/shared/StatusBadge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Database } from '@/integrations/supabase/types';
+import { cn } from '@/lib/utils';
 
 type Lead = Database['public']['Tables']['leads']['Row'] & {
   funnel?: { name: string } | null;
@@ -35,8 +36,15 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
   };
+
+  // Get initials for avatar
+  const initials = lead.full_name
+    .split(' ')
+    .slice(0, 2)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase();
 
   return (
     <div
@@ -45,37 +53,58 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
-      className="bg-card border rounded-lg p-3 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors shadow-sm"
+      className={cn(
+        'group bg-card border border-border/50 rounded-xl p-3.5 cursor-grab active:cursor-grabbing transition-all duration-200',
+        'hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5',
+        isDragging && 'opacity-50 shadow-xl rotate-2 scale-105'
+      )}
     >
-      <div className="space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <h4 className="font-medium text-sm line-clamp-1">{lead.full_name}</h4>
-          {lead.classification && (
-            <ClassificationBadge classification={lead.classification} />
+      <div className="space-y-3">
+        {/* Header with name and classification */}
+        <div className="flex items-start gap-3">
+          {/* Avatar */}
+          <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+            <span className="text-xs font-bold text-primary">{initials}</span>
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <h4 className="font-semibold text-sm text-foreground line-clamp-1">{lead.full_name}</h4>
+              <GripVertical className="h-4 w-4 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+            </div>
+            {lead.niche && (
+              <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5 flex items-center gap-1">
+                <Briefcase className="h-3 w-3" />
+                {lead.niche}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Details */}
+        <div className="flex items-center gap-3">
+          {lead.phone && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Phone className="h-3 w-3" />
+              <span className="font-medium">{lead.phone}</span>
+            </div>
           )}
         </div>
 
-        {lead.phone && (
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Phone className="h-3 w-3" />
-            <span>{lead.phone}</span>
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-2 border-t border-border/50">
+          {lead.classification && (
+            <ClassificationBadge classification={lead.classification} />
+          )}
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground ml-auto">
+            <Clock className="h-3 w-3" />
+            <span>
+              {formatDistanceToNow(new Date(lead.updated_at), { 
+                addSuffix: true, 
+                locale: ptBR 
+              })}
+            </span>
           </div>
-        )}
-
-        {lead.niche && (
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            {lead.niche}
-          </p>
-        )}
-
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Clock className="h-3 w-3" />
-          <span>
-            {formatDistanceToNow(new Date(lead.updated_at), { 
-              addSuffix: true, 
-              locale: ptBR 
-            })}
-          </span>
         </div>
       </div>
     </div>

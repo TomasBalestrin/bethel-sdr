@@ -1,25 +1,25 @@
-// Classification colors mapping
+// Classification colors mapping - Using semantic Tailwind classes
 export const CLASSIFICATION_COLORS = {
-  diamante: 'bg-classification-diamante text-white',
-  ouro: 'bg-classification-ouro text-white',
-  prata: 'bg-classification-prata text-foreground',
-  bronze: 'bg-classification-bronze text-white',
+  diamante: 'bg-diamante text-diamante-foreground',
+  ouro: 'bg-ouro text-ouro-foreground',
+  prata: 'bg-prata text-prata-foreground',
+  bronze: 'bg-bronze text-bronze-foreground',
 } as const;
 
 // Status colors mapping
 export const STATUS_COLORS = {
-  novo: 'bg-primary/20 text-primary',
-  em_atendimento: 'bg-warning/20 text-warning',
-  agendado: 'bg-success/20 text-success',
+  novo: 'bg-primary/15 text-primary',
+  em_atendimento: 'bg-warning/15 text-warning',
+  agendado: 'bg-success/15 text-success',
   concluido: 'bg-muted text-muted-foreground',
 } as const;
 
 // Appointment status colors
 export const APPOINTMENT_STATUS_COLORS = {
-  agendado: 'bg-primary/20 text-primary',
-  reagendado: 'bg-warning/20 text-warning',
-  realizado: 'bg-success/20 text-success',
-  nao_compareceu: 'bg-error/20 text-error',
+  agendado: 'bg-primary/15 text-primary',
+  reagendado: 'bg-warning/15 text-warning',
+  realizado: 'bg-success/15 text-success',
+  nao_compareceu: 'bg-destructive/15 text-destructive',
 } as const;
 
 // Role labels
