@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* SDR Scheduling System Design System - Based on PRD specifications */
+/* Bethel SDR Design System - Premium Visual Identity */
 
 @layer base {
   :root {
@@ -10,17 +10,27 @@
     --primary: 242 100% 16%;
     --primary-foreground: 0 0% 100%;
     
+    /* Primary shades for hierarchy */
+    --primary-50: 242 100% 98%;
+    --primary-100: 242 80% 95%;
+    --primary-200: 242 60% 85%;
+    --primary-300: 242 50% 70%;
+    --primary-400: 242 80% 40%;
+    --primary-500: 242 100% 16%;
+    
     /* Success - Green #16a34a */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     
     /* Warning - Yellow #eab308 */
-    --warning: 48 96% 47%;
+    --warning: 45 93% 47%;
     --warning-foreground: 226 77% 5%;
     
     /* Error/Destructive - Red #dc2626 */
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
+    --error: 0 72% 51%;
+    --error-foreground: 0 0% 100%;
     
     /* Neutral - Gray #64748b */
     --neutral: 215 16% 47%;
@@ -36,86 +46,121 @@
     --popover: 0 0% 100%;
     --popover-foreground: 226 77% 5%;
     
-    --secondary: 240 20% 96%;
+    --secondary: 240 20% 97%;
     --secondary-foreground: 226 77% 5%;
     
-    --muted: 240 20% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 240 15% 96%;
+    --muted-foreground: 215 16% 46%;
     
-    --accent: 242 100% 96%;
+    --accent: 242 100% 97%;
     --accent-foreground: 242 100% 16%;
     
-    --border: 240 20% 90%;
-    --input: 240 20% 90%;
+    --border: 240 10% 90%;
+    --input: 240 10% 90%;
     --ring: 242 100% 16%;
     
-    --radius: 0.5rem;
+    --radius: 0.625rem;
     
-    /* Classification colors */
-    --diamante: 280 68% 50%;
-    --diamante-foreground: 280 68% 96%;
-    --ouro: 45 93% 47%;
-    --ouro-foreground: 45 93% 10%;
-    --prata: 210 14% 53%;
-    --prata-foreground: 210 14% 98%;
-    --bronze: 30 41% 50%;
-    --bronze-foreground: 30 41% 98%;
+    /* Classification colors - Vibrant and distinct */
+    --diamante: 270 70% 55%;
+    --diamante-foreground: 0 0% 100%;
+    --ouro: 45 100% 50%;
+    --ouro-foreground: 0 0% 10%;
+    --prata: 220 15% 60%;
+    --prata-foreground: 0 0% 100%;
+    --bronze: 25 60% 45%;
+    --bronze-foreground: 0 0% 100%;
     
     /* CRM Column colors */
     --column-initial: 242 100% 16%;
-    --column-waiting: 48 96% 47%;
+    --column-waiting: 45 93% 47%;
     --column-calling: 25 95% 53%;
     --column-scheduled: 142 76% 36%;
-    --column-completed: 262 83% 58%;
+    --column-completed: 270 70% 55%;
 
     /* Sidebar - Dark Blue #030818 */
     --sidebar-background: 226 77% 5%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 242 100% 40%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 242 100% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 242 50% 15%;
+    --sidebar-accent: 242 50% 18%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 242 50% 12%;
-    --sidebar-ring: 242 100% 40%;
+    --sidebar-border: 242 40% 15%;
+    --sidebar-ring: 242 100% 55%;
+    --sidebar-muted: 240 15% 65%;
+    
+    /* Chart colors */
+    --chart-1: 242 100% 16%;
+    --chart-2: 142 76% 36%;
+    --chart-3: 45 93% 47%;
+    --chart-4: 270 70% 55%;
+    --chart-5: 25 95% 53%;
   }
 
   .dark {
-    --background: 226 77% 5%;
-    --foreground: 0 0% 100%;
+    --background: 226 77% 4%;
+    --foreground: 0 0% 95%;
     
-    --card: 226 60% 8%;
-    --card-foreground: 0 0% 100%;
+    --card: 226 60% 7%;
+    --card-foreground: 0 0% 95%;
     
-    --popover: 226 60% 8%;
-    --popover-foreground: 0 0% 100%;
+    --popover: 226 60% 7%;
+    --popover-foreground: 0 0% 95%;
     
-    --primary: 242 100% 40%;
+    --primary: 242 100% 55%;
     --primary-foreground: 0 0% 100%;
     
-    --secondary: 242 40% 15%;
-    --secondary-foreground: 0 0% 100%;
+    --primary-50: 242 50% 15%;
+    --primary-100: 242 50% 20%;
+    --primary-200: 242 60% 30%;
+    --primary-300: 242 70% 45%;
+    --primary-400: 242 90% 55%;
+    --primary-500: 242 100% 65%;
     
-    --muted: 242 40% 15%;
-    --muted-foreground: 240 20% 65%;
+    --secondary: 242 35% 12%;
+    --secondary-foreground: 0 0% 95%;
+    
+    --muted: 242 30% 12%;
+    --muted-foreground: 240 15% 60%;
     
     --accent: 242 40% 15%;
-    --accent-foreground: 242 100% 70%;
+    --accent-foreground: 242 100% 75%;
     
-    --destructive: 0 62% 30%;
+    --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
+    --error: 0 62% 45%;
+    --error-foreground: 0 0% 100%;
     
-    --border: 242 40% 15%;
-    --input: 242 40% 15%;
-    --ring: 242 100% 40%;
+    --border: 242 35% 15%;
+    --input: 242 35% 15%;
+    --ring: 242 100% 55%;
+    
+    /* Classification colors - Dark mode */
+    --diamante: 270 80% 65%;
+    --diamante-foreground: 0 0% 100%;
+    --ouro: 45 100% 55%;
+    --ouro-foreground: 0 0% 10%;
+    --prata: 220 20% 70%;
+    --prata-foreground: 0 0% 10%;
+    --bronze: 25 70% 55%;
+    --bronze-foreground: 0 0% 100%;
     
     --sidebar-background: 226 77% 3%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 242 100% 40%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 242 100% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 242 50% 12%;
+    --sidebar-accent: 242 50% 15%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 242 50% 10%;
-    --sidebar-ring: 242 100% 40%;
+    --sidebar-border: 242 40% 12%;
+    --sidebar-ring: 242 100% 55%;
+    --sidebar-muted: 240 15% 50%;
+    
+    /* Chart colors - Dark mode */
+    --chart-1: 242 100% 55%;
+    --chart-2: 142 76% 50%;
+    --chart-3: 45 100% 55%;
+    --chart-4: 270 80% 65%;
+    --chart-5: 25 95% 60%;
   }
 }
 
@@ -133,6 +178,61 @@
   }
 }
 
+@layer components {
+  /* Enhanced Card Styles */
+  .card-elevated {
+    @apply bg-card rounded-xl border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200;
+  }
+  
+  .card-interactive {
+    @apply card-elevated hover:border-primary/20 cursor-pointer;
+  }
+  
+  /* Gradient backgrounds */
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(242 100% 25%) 100%);
+  }
+  
+  .gradient-sidebar {
+    background: linear-gradient(180deg, hsl(226 77% 6%) 0%, hsl(226 77% 4%) 100%);
+  }
+  
+  /* Glass effect */
+  .glass {
+    @apply bg-background/80 backdrop-blur-sm;
+  }
+  
+  /* Stats card icon background */
+  .stats-icon-bg {
+    @apply flex items-center justify-center rounded-xl p-3 bg-primary/10;
+  }
+  
+  /* Active indicator for sidebar */
+  .sidebar-active-indicator {
+    @apply absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-sidebar-primary rounded-r-full;
+  }
+  
+  /* Pulse animation for notifications */
+  .notification-pulse {
+    @apply relative;
+  }
+  
+  .notification-pulse::after {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-destructive/30 animate-ping;
+  }
+  
+  /* Form input focus enhancement */
+  .input-enhanced {
+    @apply transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary;
+  }
+  
+  /* Badge variants */
+  .badge-classification {
+    @apply px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase;
+  }
+}
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -140,5 +240,44 @@
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 3px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+  
+  /* Text gradients */
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(242 100% 35%) 100%);
+  }
+  
+  /* Hover effects */
+  .hover-lift {
+    @apply transition-transform duration-200 hover:-translate-y-0.5;
+  }
+  
+  .hover-glow {
+    @apply transition-shadow duration-200 hover:shadow-lg hover:shadow-primary/10;
   }
 }
