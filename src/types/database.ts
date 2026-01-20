@@ -45,7 +45,7 @@ export interface Lead {
   main_pain: string | null;
   difficulty: string | null;
   funnel_id: string | null;
-  classification: LeadClassification;
+  classification: LeadClassification | null;
   qualification: string | null;
   assigned_sdr_id: string | null;
   status: LeadStatus;
@@ -53,6 +53,42 @@ export interface Lead {
   imported_at: string | null;
   created_at: string;
   updated_at: string;
+  // New fields
+  state: string | null;
+  business_name: string | null;
+  business_position: 'dono' | 'nao_dono' | null;
+  has_partner: boolean | null;
+  knows_specialist_since: string | null;
+  distributed_at: string | null;
+  distribution_origin: 'manual' | 'automatic' | null;
+  crm_column_id: string | null;
+}
+
+export interface Niche {
+  id: string;
+  name: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface SDRCapacity {
+  id: string;
+  sdr_id: string;
+  funnel_id: string | null;
+  max_leads: number;
+  percentage: number | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CleanupLog {
+  id: string;
+  lead_id: string | null;
+  lead_data: Record<string, unknown>;
+  cleanup_reason: 'bronze' | 'nao_fit' | 'manual';
+  google_sheet_row: number | null;
+  cleaned_at: string;
 }
 
 export interface QualificationRule {

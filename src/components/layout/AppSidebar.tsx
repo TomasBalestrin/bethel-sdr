@@ -5,7 +5,9 @@ import {
   Calendar, 
   BarChart3, 
   Settings,
-  ChevronLeft
+  ChevronLeft,
+  UserCheck,
+  ClipboardList
 } from 'lucide-react';
 import { NavLink as RouterNavLink, useLocation } from 'react-router-dom';
 import {
@@ -33,6 +35,12 @@ const menuItems: { title: string; url: string; icon: typeof LayoutDashboard; rol
     title: 'Dashboard', 
     url: '/', 
     icon: LayoutDashboard,
+    roles: ['admin', 'lider']
+  },
+  { 
+    title: 'Gestão de Leads', 
+    url: '/gestao-leads', 
+    icon: ClipboardList,
     roles: ['admin', 'lider']
   },
   { 

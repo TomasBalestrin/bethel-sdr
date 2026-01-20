@@ -139,6 +139,33 @@ export type Database = {
           },
         ]
       }
+      cleanup_logs: {
+        Row: {
+          cleaned_at: string | null
+          cleanup_reason: string
+          google_sheet_row: number | null
+          id: string
+          lead_data: Json
+          lead_id: string | null
+        }
+        Insert: {
+          cleaned_at?: string | null
+          cleanup_reason: string
+          google_sheet_row?: number | null
+          id?: string
+          lead_data: Json
+          lead_id?: string | null
+        }
+        Update: {
+          cleaned_at?: string | null
+          cleanup_reason?: string
+          google_sheet_row?: number | null
+          id?: string
+          lead_data?: Json
+          lead_id?: string | null
+        }
+        Relationships: []
+      }
       closer_availability: {
         Row: {
           active: boolean
@@ -208,6 +235,7 @@ export type Database = {
           classifications: string[] | null
           created_at: string | null
           created_by: string | null
+          distribution_mode: string | null
           funnel_id: string | null
           id: string
           max_leads_per_sdr: number | null
@@ -215,7 +243,9 @@ export type Database = {
           schedule_days: number[] | null
           schedule_enabled: boolean | null
           schedule_time: string | null
+          sdr_funnel_limits: Json | null
           sdr_ids: string[]
+          sdr_percentages: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -223,6 +253,7 @@ export type Database = {
           classifications?: string[] | null
           created_at?: string | null
           created_by?: string | null
+          distribution_mode?: string | null
           funnel_id?: string | null
           id?: string
           max_leads_per_sdr?: number | null
@@ -230,7 +261,9 @@ export type Database = {
           schedule_days?: number[] | null
           schedule_enabled?: boolean | null
           schedule_time?: string | null
+          sdr_funnel_limits?: Json | null
           sdr_ids: string[]
+          sdr_percentages?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -238,6 +271,7 @@ export type Database = {
           classifications?: string[] | null
           created_at?: string | null
           created_by?: string | null
+          distribution_mode?: string | null
           funnel_id?: string | null
           id?: string
           max_leads_per_sdr?: number | null
@@ -245,7 +279,9 @@ export type Database = {
           schedule_days?: number[] | null
           schedule_enabled?: boolean | null
           schedule_time?: string | null
+          sdr_funnel_limits?: Json | null
           sdr_ids?: string[]
+          sdr_percentages?: Json | null
           updated_at?: string | null
         }
         Relationships: [
@@ -409,6 +445,8 @@ export type Database = {
       leads: {
         Row: {
           assigned_sdr_id: string | null
+          business_name: string | null
+          business_position: string | null
           classification:
             | Database["public"]["Enums"]["lead_classification"]
             | null
@@ -416,22 +454,29 @@ export type Database = {
           crm_column_id: string | null
           custom_fields: Json | null
           difficulty: string | null
+          distributed_at: string | null
+          distribution_origin: string | null
           email: string | null
           full_name: string
           funnel_id: string | null
+          has_partner: boolean | null
           id: string
           imported_at: string | null
           instagram: string | null
+          knows_specialist_since: string | null
           main_pain: string | null
           niche: string | null
           phone: string | null
           qualification: string | null
           revenue: number | null
+          state: string | null
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string
         }
         Insert: {
           assigned_sdr_id?: string | null
+          business_name?: string | null
+          business_position?: string | null
           classification?:
             | Database["public"]["Enums"]["lead_classification"]
             | null
@@ -439,22 +484,29 @@ export type Database = {
           crm_column_id?: string | null
           custom_fields?: Json | null
           difficulty?: string | null
+          distributed_at?: string | null
+          distribution_origin?: string | null
           email?: string | null
           full_name: string
           funnel_id?: string | null
+          has_partner?: boolean | null
           id?: string
           imported_at?: string | null
           instagram?: string | null
+          knows_specialist_since?: string | null
           main_pain?: string | null
           niche?: string | null
           phone?: string | null
           qualification?: string | null
           revenue?: number | null
+          state?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
         }
         Update: {
           assigned_sdr_id?: string | null
+          business_name?: string | null
+          business_position?: string | null
           classification?:
             | Database["public"]["Enums"]["lead_classification"]
             | null
@@ -462,17 +514,22 @@ export type Database = {
           crm_column_id?: string | null
           custom_fields?: Json | null
           difficulty?: string | null
+          distributed_at?: string | null
+          distribution_origin?: string | null
           email?: string | null
           full_name?: string
           funnel_id?: string | null
+          has_partner?: boolean | null
           id?: string
           imported_at?: string | null
           instagram?: string | null
+          knows_specialist_since?: string | null
           main_pain?: string | null
           niche?: string | null
           phone?: string | null
           qualification?: string | null
           revenue?: number | null
+          state?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
         }
@@ -499,6 +556,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      niches: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -613,6 +691,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "funnels"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      sdr_capacities: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          funnel_id: string | null
+          id: string
+          max_leads: number | null
+          percentage: number | null
+          sdr_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          funnel_id?: string | null
+          id?: string
+          max_leads?: number | null
+          percentage?: number | null
+          sdr_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          funnel_id?: string | null
+          id?: string
+          max_leads?: number | null
+          percentage?: number | null
+          sdr_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sdr_capacities_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sdr_capacities_sdr_id_fkey"
+            columns: ["sdr_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }

@@ -14,6 +14,7 @@ import CRM from "./pages/CRM";
 import Calendario from "./pages/Calendario";
 import Relatorios from "./pages/Relatorios";
 import Admin from "./pages/Admin";
+import LeaderDashboard from "./pages/LeaderDashboard";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,11 @@ const App = () => (
               <Route path="/" element={
                 <ProtectedRoute allowedRoles={['admin', 'lider']}>
                   <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/gestao-leads" element={
+                <ProtectedRoute allowedRoles={['admin', 'lider']}>
+                  <LeaderDashboard />
                 </ProtectedRoute>
               } />
               <Route path="/leads" element={
@@ -53,7 +59,7 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/admin" element={
-                <ProtectedRoute allowedRoles={['admin']}>
+                <ProtectedRoute allowedRoles={['admin', 'lider']}>
                   <Admin />
                 </ProtectedRoute>
               } />
