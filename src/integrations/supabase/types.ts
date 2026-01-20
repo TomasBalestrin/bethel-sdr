@@ -143,26 +143,35 @@ export type Database = {
         Row: {
           cleaned_at: string | null
           cleanup_reason: string
+          exported_at: string | null
           google_sheet_row: number | null
+          google_sheet_url: string | null
           id: string
           lead_data: Json
           lead_id: string | null
+          sheet_name: string | null
         }
         Insert: {
           cleaned_at?: string | null
           cleanup_reason: string
+          exported_at?: string | null
           google_sheet_row?: number | null
+          google_sheet_url?: string | null
           id?: string
           lead_data: Json
           lead_id?: string | null
+          sheet_name?: string | null
         }
         Update: {
           cleaned_at?: string | null
           cleanup_reason?: string
+          exported_at?: string | null
           google_sheet_row?: number | null
+          google_sheet_url?: string | null
           id?: string
           lead_data?: Json
           lead_id?: string | null
+          sheet_name?: string | null
         }
         Relationships: []
       }

@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.distribute-leads]
 verify_jwt = false
+
+[functions.cleanup-leads]
+verify_jwt = false
