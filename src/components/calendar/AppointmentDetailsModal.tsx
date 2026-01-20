@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { AppointmentStatusBadge } from '@/components/shared/StatusBadge';
+import { ScheduledLeadCard } from './ScheduledLeadCard';
 import { useRescheduleAppointment, useRegisterCallResult, useUpdateAppointment } from '@/hooks/useAppointments';
 import { cn } from '@/lib/utils';
 
@@ -29,12 +30,27 @@ interface Appointment {
     full_name: string;
     phone?: string | null;
     email?: string | null;
+    state?: string | null;
+    instagram?: string | null;
+    business_name?: string | null;
+    business_position?: string | null;
+    niche?: string | null;
+    revenue?: number | null;
+    main_pain?: string | null;
+    has_partner?: boolean | null;
+    knows_specialist_since?: string | null;
+    classification?: string | null;
+    qualification?: string | null;
   } | null;
   closer?: {
     id: string;
     name: string;
   } | null;
   sdr?: {
+    id: string;
+    name: string;
+  } | null;
+  funnel?: {
     id: string;
     name: string;
   } | null;
@@ -126,7 +142,7 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
 
   return (
     <Dialog open={open} onOpenChange={resetAndClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {view === 'details' && 'Detalhes do Agendamento'}
@@ -137,58 +153,27 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
 
         {view === 'details' && (
           <div className="space-y-4">
-            {/* Lead Info */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-lg">{appointment.lead?.full_name || 'Lead'}</h3>
-                <AppointmentStatusBadge status={appointment.status as any} />
+            {/* ScheduledLeadCard with full lead info */}
+            {appointment.lead && (
+              <ScheduledLeadCard
+                lead={appointment.lead}
+                appointment={{
+                  id: appointment.id,
+                  scheduled_date: appointment.scheduled_date,
+                  duration: appointment.duration,
+                  status: appointment.status,
+                  closer: appointment.closer,
+                  sdr: appointment.sdr,
+                }}
+              />
+            )}
+
+            {/* Fallback if no lead data */}
+            {!appointment.lead && (
+              <div className="text-center text-muted-foreground py-4">
+                Dados do lead não disponíveis
               </div>
-              
-              {appointment.lead?.phone && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Phone className="h-4 w-4" />
-                  {appointment.lead.phone}
-                </div>
-              )}
-              
-              {appointment.lead?.email && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  {appointment.lead.email}
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            {/* Appointment Info */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">
-                  {format(date, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>{format(date, 'HH:mm')} - {appointment.duration} minutos</span>
-              </div>
-
-              {appointment.closer && (
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>Closer: {appointment.closer.name}</span>
-                </div>
-              )}
-
-              {appointment.sdr && (
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>SDR: {appointment.sdr.name}</span>
-                </div>
-              )}
-            </div>
+            )}
 
             {appointment.notes && (
               <>

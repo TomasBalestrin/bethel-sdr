@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 interface AppointmentsFilters {
   closerId?: string;
+  closerIds?: string[];
   sdrId?: string;
   status?: AppointmentStatus[];
   startDate?: string;
@@ -19,14 +20,20 @@ export function useAppointments(filters?: AppointmentsFilters) {
         .from('appointments')
         .select(`
           *,
-          lead:leads(id, full_name, phone, email, classification),
+          lead:leads(
+            id, full_name, phone, email, classification, qualification,
+            state, business_name, business_position, niche, instagram,
+            revenue, main_pain, has_partner, knows_specialist_since
+          ),
           sdr:profiles!appointments_sdr_profile_fkey(id, name, email),
           closer:profiles!appointments_closer_profile_fkey(id, name, email),
           funnel:funnels(id, name)
         `)
         .order('scheduled_date', { ascending: true });
 
-      if (filters?.closerId) {
+      if (filters?.closerIds?.length) {
+        query = query.in('closer_id', filters.closerIds);
+      } else if (filters?.closerId) {
         query = query.eq('closer_id', filters.closerId);
       }
 
