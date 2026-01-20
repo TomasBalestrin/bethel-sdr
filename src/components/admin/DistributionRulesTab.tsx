@@ -9,12 +9,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Trash2, Play, Plus, History, Users } from 'lucide-react';
+import { Pencil, Trash2, Play, Plus, History, Users, Settings2 } from 'lucide-react';
 import { useDistributionRules, useToggleDistributionRule, useDeleteDistributionRule, useExecuteDistribution, DistributionRule } from '@/hooks/useDistributionRules';
 import { DistributionRuleFormModal } from './DistributionRuleFormModal';
 import { ManualDistributionModal } from './ManualDistributionModal';
 import { DistributionLogsTable } from './DistributionLogsTable';
+import { SDRCapacityConfig } from './SDRCapacityConfig';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,164 +89,183 @@ export function DistributionRulesTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">Regras de Distribuição</h2>
-          <p className="text-sm text-muted-foreground">
-            Configure regras para distribuição automática de leads entre SDRs
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setIsLogsOpen(true)}>
-            <History className="h-4 w-4 mr-2" />
-            Histórico
-          </Button>
-          <Button variant="outline" onClick={() => setIsManualOpen(true)}>
-            <Users className="h-4 w-4 mr-2" />
-            Distribuir Agora
-          </Button>
-          <Button onClick={() => setIsFormOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Regra
-          </Button>
-        </div>
-      </div>
+    <Tabs defaultValue="rules" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="rules" className="gap-2">
+          <Users className="h-4 w-4" />
+          Regras
+        </TabsTrigger>
+        <TabsTrigger value="capacities" className="gap-2">
+          <Settings2 className="h-4 w-4" />
+          Capacidades SDR
+        </TabsTrigger>
+      </TabsList>
 
-      {rules && rules.length > 0 ? (
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Funil</TableHead>
-                <TableHead>Classificações</TableHead>
-                <TableHead>SDRs</TableHead>
-                <TableHead>Máx/SDR</TableHead>
-                <TableHead>Agendamento</TableHead>
-                <TableHead>Ativo</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rules.map((rule) => (
-                <TableRow key={rule.id}>
-                  <TableCell className="font-medium">{rule.name}</TableCell>
-                  <TableCell>
-                    {rule.funnel?.name || (
-                      <span className="text-muted-foreground">Todos</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {rule.classifications && rule.classifications.length > 0 ? (
-                      <div className="flex gap-1 flex-wrap">
-                        {rule.classifications.map((c) => (
-                          <Badge key={c} variant="secondary" className="text-xs">
-                            {CLASSIFICATION_LABELS[c] || c}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Todas</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{rule.sdr_ids.length} SDRs</Badge>
-                  </TableCell>
-                  <TableCell>{rule.max_leads_per_sdr}</TableCell>
-                  <TableCell>
-                    {rule.schedule_enabled ? (
-                      <div className="text-sm">
-                        <div className="flex gap-1 flex-wrap">
-                          {rule.schedule_days.map((d) => (
-                            <Badge key={d} variant="secondary" className="text-xs">
-                              {DAY_LABELS[d]}
-                            </Badge>
-                          ))}
+      <TabsContent value="rules">
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">Regras de Distribuição</h2>
+              <p className="text-sm text-muted-foreground">
+                Configure regras para distribuição automática de leads entre SDRs
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsLogsOpen(true)}>
+                <History className="h-4 w-4 mr-2" />
+                Histórico
+              </Button>
+              <Button variant="outline" onClick={() => setIsManualOpen(true)}>
+                <Users className="h-4 w-4 mr-2" />
+                Distribuir Agora
+              </Button>
+              <Button onClick={() => setIsFormOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Regra
+              </Button>
+            </div>
+          </div>
+
+          {rules && rules.length > 0 ? (
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Funil</TableHead>
+                    <TableHead>Classificações</TableHead>
+                    <TableHead>SDRs</TableHead>
+                    <TableHead>Máx/SDR</TableHead>
+                    <TableHead>Agendamento</TableHead>
+                    <TableHead>Ativo</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rules.map((rule) => (
+                    <TableRow key={rule.id}>
+                      <TableCell className="font-medium">{rule.name}</TableCell>
+                      <TableCell>
+                        {rule.funnel?.name || (
+                          <span className="text-muted-foreground">Todos</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {rule.classifications && rule.classifications.length > 0 ? (
+                          <div className="flex gap-1 flex-wrap">
+                            {rule.classifications.map((c) => (
+                              <Badge key={c} variant="secondary" className="text-xs">
+                                {CLASSIFICATION_LABELS[c] || c}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Todas</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{rule.sdr_ids.length} SDRs</Badge>
+                      </TableCell>
+                      <TableCell>{rule.max_leads_per_sdr}</TableCell>
+                      <TableCell>
+                        {rule.schedule_enabled ? (
+                          <div className="text-sm">
+                            <div className="flex gap-1 flex-wrap">
+                              {rule.schedule_days.map((d) => (
+                                <Badge key={d} variant="secondary" className="text-xs">
+                                  {DAY_LABELS[d]}
+                                </Badge>
+                              ))}
+                            </div>
+                            <span className="text-muted-foreground">
+                              às {rule.schedule_time?.slice(0, 5)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Manual</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Switch
+                          checked={rule.active}
+                          onCheckedChange={(active) => toggleRule.mutate({ id: rule.id, active })}
+                        />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleExecute(rule)}
+                            disabled={!rule.active || executingRuleId === rule.id}
+                            title="Executar agora"
+                          >
+                            <Play className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(rule)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(rule)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <span className="text-muted-foreground">
-                          às {rule.schedule_time?.slice(0, 5)}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Manual</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={rule.active}
-                      onCheckedChange={(active) => toggleRule.mutate({ id: rule.id, active })}
-                    />
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleExecute(rule)}
-                        disabled={!rule.active || executingRuleId === rule.id}
-                        title="Executar agora"
-                      >
-                        <Play className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(rule)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(rule)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <EmptyState
+              icon={Users}
+              title="Nenhuma regra configurada"
+              description="Crie regras para distribuir leads automaticamente entre SDRs"
+              action={{
+                label: 'Criar Regra',
+                onClick: () => setIsFormOpen(true),
+              }}
+            />
+          )}
+
+          <DistributionRuleFormModal
+            open={isFormOpen}
+            onOpenChange={handleCloseForm}
+            rule={editingRule}
+          />
+
+          <ManualDistributionModal
+            open={isManualOpen}
+            onOpenChange={setIsManualOpen}
+          />
+
+          <DistributionLogsTable
+            open={isLogsOpen}
+            onOpenChange={setIsLogsOpen}
+          />
+
+          <ConfirmDialog
+            open={!!deletingRule}
+            onOpenChange={(open) => !open && setDeletingRule(null)}
+            title="Excluir Regra"
+            description={`Tem certeza que deseja excluir a regra "${deletingRule?.name}"?`}
+            confirmLabel="Excluir"
+            onConfirm={confirmDelete}
+            variant="destructive"
+          />
         </div>
-      ) : (
-        <EmptyState
-          icon={Users}
-          title="Nenhuma regra configurada"
-          description="Crie regras para distribuir leads automaticamente entre SDRs"
-          action={{
-            label: 'Criar Regra',
-            onClick: () => setIsFormOpen(true),
-          }}
-        />
-      )}
+      </TabsContent>
 
-      <DistributionRuleFormModal
-        open={isFormOpen}
-        onOpenChange={handleCloseForm}
-        rule={editingRule}
-      />
-
-      <ManualDistributionModal
-        open={isManualOpen}
-        onOpenChange={setIsManualOpen}
-      />
-
-      <DistributionLogsTable
-        open={isLogsOpen}
-        onOpenChange={setIsLogsOpen}
-      />
-
-      <ConfirmDialog
-        open={!!deletingRule}
-        onOpenChange={(open) => !open && setDeletingRule(null)}
-        title="Excluir Regra"
-        description={`Tem certeza que deseja excluir a regra "${deletingRule?.name}"?`}
-        confirmLabel="Excluir"
-        onConfirm={confirmDelete}
-        variant="destructive"
-      />
-    </div>
+      <TabsContent value="capacities">
+        <SDRCapacityConfig />
+      </TabsContent>
+    </Tabs>
   );
 }
