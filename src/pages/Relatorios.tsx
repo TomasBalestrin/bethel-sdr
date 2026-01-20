@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/hooks/useAuth';
 import { useUsersByRole } from '@/hooks/useUsers';
 import { ReportFilters } from '@/components/reports/ReportFilters';
+import { ExportButtons } from '@/components/reports/ExportButtons';
 import { SDRMetricsCards } from '@/components/reports/SDRMetricsCards';
 import { SDRPerformanceChart } from '@/components/reports/SDRPerformanceChart';
 import { CloserMetricsCards } from '@/components/reports/CloserMetricsCards';
@@ -25,6 +26,11 @@ import {
   useAllClosersPerformance,
   type DateRange,
 } from '@/hooks/useReportsStats';
+import {
+  exportSDRData,
+  exportCloserData,
+  exportFunnelData,
+} from '@/lib/exportUtils';
 
 export default function Relatorios() {
   const { isAdminOrLider, loading: authLoading } = useAuth();
@@ -60,6 +66,30 @@ export default function Relatorios() {
       style: 'currency',
       currency: 'BRL',
     }).format(value);
+  };
+
+  // Export handlers
+  const handleExportSDR = (format: 'csv' | 'excel') => {
+    if (!allSDRsPerformance) return;
+    const exportData = allSDRsPerformance.map(sdr => ({
+      ...sdr,
+      taxaAgendamento: sdr.atribuidos > 0 ? (sdr.agendados / sdr.atribuidos) * 100 : 0,
+    }));
+    exportSDRData(exportData, dateRange, format);
+  };
+
+  const handleExportCloser = (format: 'csv' | 'excel') => {
+    if (!allClosersPerformance) return;
+    const exportData = allClosersPerformance.map(closer => ({
+      ...closer,
+      taxaConversao: closer.realizadas > 0 ? (closer.conversoes / closer.realizadas) * 100 : 0,
+    }));
+    exportCloserData(exportData, dateRange, format);
+  };
+
+  const handleExportFunnel = (format: 'csv' | 'excel') => {
+    if (!funnelStats) return;
+    exportFunnelData(funnelStats, dateRange, format);
   };
 
   return (
@@ -99,14 +129,21 @@ export default function Relatorios() {
 
           {/* SDRs Tab */}
           <TabsContent value="sdrs" className="space-y-6">
-            <ReportFilters
-              dateRange={dateRange}
-              onDateRangeChange={setDateRange}
-              users={sdrs}
-              selectedUserId={selectedSDR}
-              onUserChange={setSelectedSDR}
-              userLabel="SDR"
-            />
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <ReportFilters
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                users={sdrs}
+                selectedUserId={selectedSDR}
+                onUserChange={setSelectedSDR}
+                userLabel="SDR"
+              />
+              <ExportButtons
+                onExportCSV={() => handleExportSDR('csv')}
+                onExportExcel={() => handleExportSDR('excel')}
+                disabled={!allSDRsPerformance || allSDRsPerformance.length === 0}
+              />
+            </div>
 
             <SDRMetricsCards metrics={sdrStats} isLoading={sdrStatsLoading} />
 
@@ -121,14 +158,21 @@ export default function Relatorios() {
 
           {/* Closers Tab */}
           <TabsContent value="closers" className="space-y-6">
-            <ReportFilters
-              dateRange={dateRange}
-              onDateRangeChange={setDateRange}
-              users={closers}
-              selectedUserId={selectedCloser}
-              onUserChange={setSelectedCloser}
-              userLabel="Closer"
-            />
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <ReportFilters
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                users={closers}
+                selectedUserId={selectedCloser}
+                onUserChange={setSelectedCloser}
+                userLabel="Closer"
+              />
+              <ExportButtons
+                onExportCSV={() => handleExportCloser('csv')}
+                onExportExcel={() => handleExportCloser('excel')}
+                disabled={!allClosersPerformance || allClosersPerformance.length === 0}
+              />
+            </div>
 
             <CloserMetricsCards metrics={closerStats} isLoading={closerStatsLoading} />
 
@@ -137,11 +181,18 @@ export default function Relatorios() {
 
           {/* Funis Tab */}
           <TabsContent value="funis" className="space-y-6">
-            <ReportFilters
-              dateRange={dateRange}
-              onDateRangeChange={setDateRange}
-              showUserFilter={false}
-            />
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <ReportFilters
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                showUserFilter={false}
+              />
+              <ExportButtons
+                onExportCSV={() => handleExportFunnel('csv')}
+                onExportExcel={() => handleExportFunnel('excel')}
+                disabled={!funnelStats || funnelStats.length === 0}
+              />
+            </div>
 
             <FunnelMetricsCards data={funnelStats} isLoading={funnelStatsLoading} />
 

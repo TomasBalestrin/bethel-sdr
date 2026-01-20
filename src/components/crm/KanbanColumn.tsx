@@ -1,6 +1,7 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { KanbanCard } from './KanbanCard';
+import { KanbanScheduledCard } from './KanbanScheduledCard';
 import { Database } from '@/integrations/supabase/types';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +26,10 @@ export function KanbanColumn({ column, leads, onLeadClick }: KanbanColumnProps) 
       column,
     },
   });
+
+  // Check if this is the "Agendado" column
+  const isAgendadoColumn = column.name.toLowerCase() === 'agendado' || 
+                          column.name.toLowerCase() === 'agendados';
 
   return (
     <div className="flex-shrink-0 w-80 flex flex-col">
@@ -64,11 +69,19 @@ export function KanbanColumn({ column, leads, onLeadClick }: KanbanColumnProps) 
           <div className="space-y-2.5">
             {leads.length > 0 ? (
               leads.map((lead) => (
-                <KanbanCard
-                  key={lead.id}
-                  lead={lead}
-                  onClick={() => onLeadClick(lead)}
-                />
+                isAgendadoColumn ? (
+                  <KanbanScheduledCard
+                    key={lead.id}
+                    lead={lead}
+                    onClick={() => onLeadClick(lead)}
+                  />
+                ) : (
+                  <KanbanCard
+                    key={lead.id}
+                    lead={lead}
+                    onClick={() => onLeadClick(lead)}
+                  />
+                )
               ))
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center">
