@@ -16,6 +16,7 @@ import { FunnelFormModal } from '@/components/admin/FunnelFormModal';
 import { CRMColumnFormModal } from '@/components/admin/CRMColumnFormModal';
 import { DistributionRulesTab } from '@/components/admin/DistributionRulesTab';
 import { QualificationRulesTab } from '@/components/admin/QualificationRulesTab';
+import { CleanupConfigTab } from '@/components/admin/CleanupConfigTab';
 import type { ProfileWithRole, Funnel, CrmColumn } from '@/types/database';
 
 export default function Admin() {
@@ -124,6 +125,10 @@ export default function Admin() {
             <TabsTrigger value="qualification" className="gap-2">
               <Scale className="h-4 w-4" />
               Qualificação
+            </TabsTrigger>
+            <TabsTrigger value="cleanup" className="gap-2">
+              <Trash2 className="h-4 w-4" />
+              Limpeza
             </TabsTrigger>
           </TabsList>
 
@@ -336,6 +341,11 @@ export default function Admin() {
           {/* Qualification Tab */}
           <TabsContent value="qualification">
             <QualificationRulesTab />
+          </TabsContent>
+
+          {/* Cleanup Tab */}
+          <TabsContent value="cleanup">
+            <CleanupConfigTab />
           </TabsContent>
         </Tabs>
       </div>
