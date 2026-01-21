@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Phone, Mail, User, Clock, X } from 'lucide-react';
+import { Calendar as CalendarIcon, UserCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -11,9 +11,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { AppointmentStatusBadge } from '@/components/shared/StatusBadge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScheduledLeadCard } from './ScheduledLeadCard';
-import { useRescheduleAppointment, useRegisterCallResult, useUpdateAppointment } from '@/hooks/useAppointments';
+import { useRescheduleAppointment, useRegisterCallResult, useUpdateAppointment, useReassignAppointment } from '@/hooks/useAppointments';
+import { useUsersByRole } from '@/hooks/useUsers';
 import { cn } from '@/lib/utils';
 
 interface Appointment {
@@ -62,7 +63,7 @@ interface AppointmentDetailsModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type ModalView = 'details' | 'reschedule' | 'result';
+type ModalView = 'details' | 'reschedule' | 'result' | 'reassign';
 
 export function AppointmentDetailsModal({ appointment, open, onOpenChange }: AppointmentDetailsModalProps) {
   const [view, setView] = useState<ModalView>('details');
@@ -72,14 +73,16 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
   const [converted, setConverted] = useState(false);
   const [conversionValue, setConversionValue] = useState('');
   const [notes, setNotes] = useState('');
+  const [selectedCloserId, setSelectedCloserId] = useState('');
 
   const reschedule = useRescheduleAppointment();
   const registerResult = useRegisterCallResult();
   const updateAppointment = useUpdateAppointment();
+  const reassignAppointment = useReassignAppointment();
+  const { data: closers } = useUsersByRole('closer');
 
   if (!appointment) return null;
 
-  const date = parseISO(appointment.scheduled_date);
   const isCompleted = appointment.status === 'realizado' || appointment.status === 'nao_compareceu';
 
   const handleReschedule = () => {
@@ -129,6 +132,20 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
     );
   };
 
+  const handleReassign = () => {
+    if (!selectedCloserId) return;
+
+    reassignAppointment.mutate(
+      { appointmentId: appointment.id, closerId: selectedCloserId },
+      {
+        onSuccess: () => {
+          setView('details');
+          onOpenChange(false);
+        },
+      }
+    );
+  };
+
   const resetAndClose = () => {
     setView('details');
     setRescheduleDate(undefined);
@@ -137,6 +154,7 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
     setConverted(false);
     setConversionValue('');
     setNotes('');
+    setSelectedCloserId('');
     onOpenChange(false);
   };
 
@@ -148,6 +166,7 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
             {view === 'details' && 'Detalhes do Agendamento'}
             {view === 'reschedule' && 'Reagendar'}
             {view === 'result' && 'Registrar Resultado'}
+            {view === 'reassign' && 'Reatribuir Closer'}
           </DialogTitle>
         </DialogHeader>
 
@@ -203,6 +222,19 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
                     onClick={() => setView('result')}
                   >
                     Registrar Resultado
+                  </Button>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="secondary" 
+                    className="flex-1"
+                    onClick={() => {
+                      setSelectedCloserId(appointment.closer?.id || '');
+                      setView('reassign');
+                    }}
+                  >
+                    <UserCheck className="h-4 w-4 mr-2" />
+                    Alterar Closer
                   </Button>
                 </div>
                 <Button 
@@ -319,6 +351,45 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
                 className="flex-1"
               >
                 Salvar
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {view === 'reassign' && (
+          <div className="space-y-4">
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                Closer atual: <span className="font-medium text-foreground">{appointment.closer?.name || 'Não atribuído'}</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Novo Closer</Label>
+              <Select value={selectedCloserId} onValueChange={setSelectedCloserId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um closer" />
+                </SelectTrigger>
+                <SelectContent>
+                  {closers?.map((closer) => (
+                    <SelectItem key={closer.user_id} value={closer.user_id}>
+                      {closer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setView('details')} className="flex-1">
+                Voltar
+              </Button>
+              <Button 
+                onClick={handleReassign}
+                disabled={!selectedCloserId || selectedCloserId === appointment.closer?.id || reassignAppointment.isPending}
+                className="flex-1"
+              >
+                {reassignAppointment.isPending ? 'Salvando...' : 'Confirmar'}
               </Button>
             </div>
           </div>

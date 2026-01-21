@@ -255,8 +255,33 @@ export function useAppointmentStats() {
         convertidos,
         valorTotal,
         taxaComparecimento: total > 0 ? (realizados / total) * 100 : 0,
-        taxaConversao: realizados > 0 ? (convertidos / realizados) * 100 : 0,
-      };
+      taxaConversao: realizados > 0 ? (convertidos / realizados) * 100 : 0,
+    };
+  },
+});
+}
+
+export function useReassignAppointment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ appointmentId, closerId }: { appointmentId: string; closerId: string }) => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({ closer_id: closerId })
+        .eq('id', appointmentId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      toast.success('Closer reatribuído com sucesso');
+    },
+    onError: (error) => {
+      toast.error('Erro ao reatribuir closer: ' + error.message);
     },
   });
 }
