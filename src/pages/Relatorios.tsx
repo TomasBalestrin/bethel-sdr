@@ -31,6 +31,12 @@ import {
   exportCloserData,
   exportFunnelData,
 } from '@/lib/exportUtils';
+import {
+  exportSDRToPDF,
+  exportCloserToPDF,
+  exportFunnelToPDF,
+} from '@/lib/pdfExportUtils';
+import { toast } from 'sonner';
 
 export default function Relatorios() {
   const { isAdminOrLider, loading: authLoading } = useAuth();
@@ -92,6 +98,66 @@ export default function Relatorios() {
     exportFunnelData(funnelStats, dateRange, format);
   };
 
+  // PDF Export handlers
+  const handleExportSDRPDF = async () => {
+    if (!allSDRsPerformance) return;
+    try {
+      const pdfData = allSDRsPerformance.map(sdr => ({
+        name: sdr.name,
+        leadsRecebidos: sdr.atribuidos,
+        leadsContatados: sdr.agendados, // Using agendados as proxy for contacted
+        taxaContato: sdr.atribuidos > 0 ? (sdr.agendados / sdr.atribuidos) * 100 : 0,
+        agendamentos: sdr.agendados,
+        taxaAgendamento: sdr.atribuidos > 0 ? (sdr.agendados / sdr.atribuidos) * 100 : 0,
+      }));
+      await exportSDRToPDF(pdfData, dateRange);
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao exportar PDF');
+      console.error(error);
+    }
+  };
+
+  const handleExportCloserPDF = async () => {
+    if (!allClosersPerformance) return;
+    try {
+      const pdfData = allClosersPerformance.map(closer => ({
+        name: closer.name,
+        agendamentos: closer.agendadas,
+        realizadas: closer.realizadas,
+        taxaComparecimento: closer.agendadas > 0 ? (closer.realizadas / closer.agendadas) * 100 : 0,
+        conversoes: closer.conversoes,
+        taxaConversao: closer.realizadas > 0 ? (closer.conversoes / closer.realizadas) * 100 : 0,
+        valorTotal: closer.valor,
+      }));
+      await exportCloserToPDF(pdfData, dateRange);
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao exportar PDF');
+      console.error(error);
+    }
+  };
+
+  const handleExportFunnelPDF = async () => {
+    if (!funnelStats) return;
+    try {
+      const pdfData = funnelStats.map(funnel => ({
+        name: funnel.name,
+        totalLeads: funnel.leads,
+        leadsQualificados: funnel.agendamentos,
+        agendamentos: funnel.agendamentos,
+        conversoes: funnel.conversoes,
+        taxaConversao: funnel.taxaConversao,
+        valorTotal: funnel.valorGerado,
+      }));
+      await exportFunnelToPDF(pdfData, dateRange);
+      toast.success('PDF exportado com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao exportar PDF');
+      console.error(error);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -141,6 +207,7 @@ export default function Relatorios() {
               <ExportButtons
                 onExportCSV={() => handleExportSDR('csv')}
                 onExportExcel={() => handleExportSDR('excel')}
+                onExportPDF={handleExportSDRPDF}
                 disabled={!allSDRsPerformance || allSDRsPerformance.length === 0}
               />
             </div>
@@ -170,6 +237,7 @@ export default function Relatorios() {
               <ExportButtons
                 onExportCSV={() => handleExportCloser('csv')}
                 onExportExcel={() => handleExportCloser('excel')}
+                onExportPDF={handleExportCloserPDF}
                 disabled={!allClosersPerformance || allClosersPerformance.length === 0}
               />
             </div>
@@ -190,6 +258,7 @@ export default function Relatorios() {
               <ExportButtons
                 onExportCSV={() => handleExportFunnel('csv')}
                 onExportExcel={() => handleExportFunnel('excel')}
+                onExportPDF={handleExportFunnelPDF}
                 disabled={!funnelStats || funnelStats.length === 0}
               />
             </div>

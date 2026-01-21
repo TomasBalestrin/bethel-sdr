@@ -264,6 +264,51 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
               </Popover>
             </div>
           </div>
+
+          {/* Distribution Date Range */}
+          <div className="space-y-2">
+            <Label>Data de Distribuição</Label>
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="flex-1 justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.distributedStartDate 
+                      ? format(new Date(filters.distributedStartDate), 'dd/MM/yy', { locale: ptBR })
+                      : 'De'
+                    }
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filters.distributedStartDate ? new Date(filters.distributedStartDate) : undefined}
+                    onSelect={(date) => updateFilter('distributedStartDate', date?.toISOString())}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="flex-1 justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.distributedEndDate 
+                      ? format(new Date(filters.distributedEndDate), 'dd/MM/yy', { locale: ptBR })
+                      : 'Até'
+                    }
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={filters.distributedEndDate ? new Date(filters.distributedEndDate) : undefined}
+                    onSelect={(date) => updateFilter('distributedEndDate', date?.toISOString())}
+                    locale={ptBR}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
         </div>
 
         {/* Classifications */}

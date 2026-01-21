@@ -1,4 +1,4 @@
-import { Download, FileSpreadsheet, FileText } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, FileType } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -10,10 +10,11 @@ import {
 interface ExportButtonsProps {
   onExportCSV: () => void;
   onExportExcel: () => void;
+  onExportPDF?: () => void;
   disabled?: boolean;
 }
 
-export function ExportButtons({ onExportCSV, onExportExcel, disabled }: ExportButtonsProps) {
+export function ExportButtons({ onExportCSV, onExportExcel, onExportPDF, disabled }: ExportButtonsProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -31,6 +32,12 @@ export function ExportButtons({ onExportCSV, onExportExcel, disabled }: ExportBu
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Exportar Excel
         </DropdownMenuItem>
+        {onExportPDF && (
+          <DropdownMenuItem onClick={onExportPDF}>
+            <FileType className="h-4 w-4 mr-2" />
+            Exportar PDF
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
