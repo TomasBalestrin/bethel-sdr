@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Appointment, AppointmentStatus, AppointmentWithRelations } from '@/types/database';
 import { toast } from 'sonner';
+import { syncGoogleCalendar, buildEventData } from '@/lib/googleCalendarSync';
 
 interface AppointmentsFilters {
   closerId?: string;
@@ -103,6 +104,33 @@ export function useCreateAppointment() {
         .update({ status: 'agendado' })
         .eq('id', appointment.lead_id);
 
+      // Get lead and closer details for Google Calendar sync
+      const [leadResult, closerResult] = await Promise.all([
+        supabase.from('leads').select('full_name, phone, email, niche, revenue, main_pain').eq('id', appointment.lead_id).single(),
+        supabase.from('profiles').select('email').eq('user_id', appointment.closer_id).single()
+      ]);
+
+      if (leadResult.data) {
+        const eventData = buildEventData({
+          leadName: leadResult.data.full_name,
+          leadPhone: leadResult.data.phone,
+          leadEmail: leadResult.data.email,
+          niche: leadResult.data.niche,
+          revenue: leadResult.data.revenue,
+          challenge: leadResult.data.main_pain,
+          scheduledDate: appointment.scheduled_date,
+          duration: appointment.duration || 90,
+          notes: appointment.notes,
+        });
+
+        syncGoogleCalendar({
+          action: 'create',
+          appointmentId: data.id,
+          closerEmail: closerResult.data?.email,
+          eventData,
+        });
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -146,10 +174,16 @@ export function useRescheduleAppointment() {
 
   return useMutation({
     mutationFn: async ({ id, scheduled_date }: { id: string; scheduled_date: string }) => {
-      // Get current reschedule count
+      // Get current appointment data including lead and closer
       const { data: current, error: fetchError } = await supabase
         .from('appointments')
-        .select('reschedule_count')
+        .select(`
+          reschedule_count,
+          duration,
+          notes,
+          lead:leads(full_name, phone, email, niche, revenue, main_pain),
+          closer:profiles!appointments_closer_profile_fkey(email)
+        `)
         .eq('id', id)
         .single();
 
@@ -167,6 +201,30 @@ export function useRescheduleAppointment() {
         .single();
 
       if (error) throw error;
+
+      // Sync with Google Calendar
+      if (current?.lead) {
+        const lead = current.lead as any;
+        const eventData = buildEventData({
+          leadName: lead.full_name,
+          leadPhone: lead.phone,
+          leadEmail: lead.email,
+          niche: lead.niche,
+          revenue: lead.revenue,
+          challenge: lead.main_pain,
+          scheduledDate: scheduled_date,
+          duration: current.duration || 90,
+          notes: current.notes,
+        });
+
+        syncGoogleCalendar({
+          action: 'update',
+          appointmentId: id,
+          closerEmail: (current.closer as any)?.email,
+          eventData,
+        });
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -266,6 +324,22 @@ export function useReassignAppointment() {
 
   return useMutation({
     mutationFn: async ({ appointmentId, closerId }: { appointmentId: string; closerId: string }) => {
+      // Get current appointment data
+      const { data: current, error: fetchError } = await supabase
+        .from('appointments')
+        .select(`
+          scheduled_date,
+          duration,
+          notes,
+          closer_id,
+          lead:leads(full_name, phone, email, niche, revenue, main_pain),
+          closer:profiles!appointments_closer_profile_fkey(email)
+        `)
+        .eq('id', appointmentId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
       const { data, error } = await supabase
         .from('appointments')
         .update({ closer_id: closerId })
@@ -274,6 +348,46 @@ export function useReassignAppointment() {
         .single();
 
       if (error) throw error;
+
+      // Get new closer email
+      const { data: newCloser } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('user_id', closerId)
+        .single();
+
+      // Delete event from old closer's calendar
+      if (current?.closer) {
+        syncGoogleCalendar({
+          action: 'delete',
+          appointmentId,
+          closerEmail: (current.closer as any)?.email,
+        });
+      }
+
+      // Create event in new closer's calendar
+      if (current?.lead && newCloser) {
+        const lead = current.lead as any;
+        const eventData = buildEventData({
+          leadName: lead.full_name,
+          leadPhone: lead.phone,
+          leadEmail: lead.email,
+          niche: lead.niche,
+          revenue: lead.revenue,
+          challenge: lead.main_pain,
+          scheduledDate: current.scheduled_date,
+          duration: current.duration || 90,
+          notes: current.notes,
+        });
+
+        syncGoogleCalendar({
+          action: 'create',
+          appointmentId,
+          closerEmail: newCloser.email,
+          eventData,
+        });
+      }
+
       return data;
     },
     onSuccess: () => {
