@@ -130,21 +130,55 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
 }
 
 function normalizeServiceAccountEmail(input: string | null | undefined): string {
-  let raw = (input ?? '').trim();
+  const stripQuotes = (s: string) => {
+    let out = s.trim();
+    if (
+      (out.startsWith('"') && out.endsWith('"')) ||
+      (out.startsWith("'") && out.endsWith("'"))
+    ) {
+      out = out.slice(1, -1).trim();
+    }
+    return out;
+  };
 
-  // Strip wrapping quotes if the secret was saved as a quoted string
-  if (
-    (raw.startsWith('"') && raw.endsWith('"')) ||
-    (raw.startsWith("'") && raw.endsWith("'"))
-  ) {
-    raw = raw.slice(1, -1).trim();
-  }
+  const extractClientEmail = (s: string): string | null => {
+    const candidate = stripQuotes(s);
 
-  // If user pasted the full service-account JSON here, extract client_email
-  if (raw.startsWith('{') && raw.includes('"client_email"')) {
+    // JSON path
+    if (candidate.startsWith('{') && candidate.includes('client_email')) {
+      try {
+        const obj = JSON.parse(candidate);
+        if (typeof obj?.client_email === 'string') return obj.client_email.trim();
+      } catch {
+        // fallthrough to regex extraction
+      }
+
+      // Regex fallback (handles malformed “JSON” with single quotes etc.)
+      const m1 = candidate.match(/client_email\s*"?\s*:\s*"([^"]+)"/);
+      if (m1?.[1]) return m1[1].trim();
+      const m2 = candidate.match(/client_email\s*'?\s*:\s*'([^']+)'/);
+      if (m2?.[1]) return m2[1].trim();
+    }
+
+    return null;
+  };
+
+  let raw = stripQuotes(input ?? '');
+
+  // Direct JSON / malformed JSON
+  const extracted = extractClientEmail(raw);
+  if (extracted) return extracted;
+
+  // Base64/base64url encoded JSON (common when saving secrets)
+  if (!raw.includes('@') && /^[A-Za-z0-9+/=_-]+$/.test(raw) && raw.length > 80) {
     try {
-      const obj = JSON.parse(raw);
-      if (typeof obj?.client_email === 'string') raw = obj.client_email;
+      let b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = b64.length % 4;
+      if (pad) b64 += '='.repeat(4 - pad);
+      const decoded = atob(b64);
+      const extractedFromDecoded = extractClientEmail(decoded);
+      if (extractedFromDecoded) return extractedFromDecoded;
+      if (decoded.includes('@')) return stripQuotes(decoded);
     } catch {
       // ignore
     }
@@ -307,11 +341,18 @@ Deno.serve(async (req) => {
 
     const serviceEmail = normalizeServiceAccountEmail(serviceEmailRaw);
     if (!serviceEmail || !serviceEmail.includes('@')) {
+      console.log('Invalid GOOGLE_SERVICE_ACCOUNT_EMAIL', {
+        rawLength: serviceEmailRaw?.length ?? 0,
+        normalizedLength: serviceEmail?.length ?? 0,
+        hasAt: serviceEmail?.includes('@') ?? false,
+        looksLikeJson: (serviceEmailRaw ?? '').trim().startsWith('{'),
+      });
+
       return new Response(
         JSON.stringify({
           success: false,
           error:
-            'Google Service Account email is invalid. Ensure GOOGLE_SERVICE_ACCOUNT_EMAIL is set to the client_email from the service-account JSON.',
+            'Google Service Account email is invalid. Set GOOGLE_SERVICE_ACCOUNT_EMAIL to the service-account client_email (…@….iam.gserviceaccount.com). You may also paste the full service-account JSON (or base64 of it) and we will extract client_email.',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );

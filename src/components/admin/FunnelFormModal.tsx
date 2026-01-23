@@ -109,14 +109,18 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
 
   const handleTestConnection = async () => {
     if (!watchSheetUrl || !watchSheetName) return;
-    
-    const result = await testConnection.mutateAsync({
-      sheetUrl: watchSheetUrl,
-      sheetName: watchSheetName,
-    });
-    
-    if (result.success) {
-      setConnectionTested(true);
+
+    try {
+      const result = await testConnection.mutateAsync({
+        sheetUrl: watchSheetUrl,
+        sheetName: watchSheetName,
+      });
+
+      if (result.success) {
+        setConnectionTested(true);
+      }
+    } catch {
+      // Errors are handled (toast) by the mutation onError; avoid unhandled rejections.
     }
   };
 
