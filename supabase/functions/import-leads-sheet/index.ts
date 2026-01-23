@@ -371,6 +371,31 @@ function parseBoolean(value: string | undefined): boolean | null {
   return null;
 }
 
+// Normalize business_position to match database constraint ('dono' or 'nao_dono')
+function normalizeBusinessPosition(value: string | undefined): string | null {
+  if (!value) return null;
+  const lower = value.toLowerCase().trim();
+  
+  // Variations of "dono" (owner)
+  if (lower.includes('dono') && !lower.includes('não') && !lower.includes('nao')) {
+    return 'dono';
+  }
+  
+  // Variations of "não dono" (not owner)
+  if (lower.includes('não dono') || lower.includes('nao dono') || 
+      lower === 'não' || lower === 'nao' || lower === 'n') {
+    return 'nao_dono';
+  }
+  
+  // Affirmative responses = owner
+  if (['sim', 'yes', 's', 'true', '1'].includes(lower)) {
+    return 'dono';
+  }
+  
+  // If unidentified, return null (accepted by database)
+  return null;
+}
+
 function mapRowToLead(
   row: string[],
   headers: string[],
@@ -396,7 +421,7 @@ function mapRowToLead(
     instagram: getColumnValue(mapping.instagram) || null,
     niche: getColumnValue(mapping.niche) || null,
     business_name: getColumnValue(mapping.business_name) || null,
-    business_position: getColumnValue(mapping.business_position) || null,
+    business_position: normalizeBusinessPosition(getColumnValue(mapping.business_position)),
     revenue: parseRevenue(getColumnValue(mapping.revenue)),
     main_pain: getColumnValue(mapping.main_pain) || null,
     has_partner: parseBoolean(getColumnValue(mapping.has_partner)),
