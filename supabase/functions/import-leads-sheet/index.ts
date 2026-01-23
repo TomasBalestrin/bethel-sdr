@@ -60,13 +60,23 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
   const encodedClaim = base64UrlEncode(JSON.stringify(claim));
   const signatureInput = `${encodedHeader}.${encodedClaim}`;
 
-  // Import the private key
+  // Import the private key - handle various formats
   const pemHeader = '-----BEGIN PRIVATE KEY-----';
   const pemFooter = '-----END PRIVATE KEY-----';
-  let pemContents = privateKey.replace(pemHeader, '').replace(pemFooter, '');
-  pemContents = pemContents.replace(/\\n/g, '').replace(/\s/g, '');
+  
+  // First, handle escaped newlines from environment variables
+  let cleanedKey = privateKey
+    .replace(/\\n/g, '\n')  // Replace escaped \n with actual newlines
+    .replace(pemHeader, '')
+    .replace(pemFooter, '')
+    .replace(/[\n\r\s]/g, '');  // Remove all whitespace and newlines
 
-  const binaryKey = Uint8Array.from(atob(pemContents), (c) => c.charCodeAt(0));
+  // Validate base64 string
+  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedKey)) {
+    throw new Error('Invalid private key format: contains non-base64 characters');
+  }
+
+  const binaryKey = Uint8Array.from(atob(cleanedKey), (c) => c.charCodeAt(0));
 
   const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
