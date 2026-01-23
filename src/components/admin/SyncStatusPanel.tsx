@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useFunnels } from '@/hooks/useFunnels';
-import { useSyncFunnel, useSyncAllFunnels } from '@/hooks/useSheetSync';
+import { useSyncFunnelWithProgress, useSyncAllFunnels } from '@/hooks/useSheetSync';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import {
   Table,
   TableBody,
@@ -26,7 +27,7 @@ import { ptBR } from 'date-fns/locale';
 
 export function SyncStatusPanel() {
   const { data: funnels, isLoading } = useFunnels();
-  const syncFunnel = useSyncFunnel();
+  const { syncFunnel, progress } = useSyncFunnelWithProgress();
   const syncAllFunnels = useSyncAllFunnels();
   const [syncingFunnelId, setSyncingFunnelId] = useState<string | null>(null);
 
@@ -37,7 +38,7 @@ export function SyncStatusPanel() {
   const handleSyncFunnel = async (funnelId: string) => {
     setSyncingFunnelId(funnelId);
     try {
-      await syncFunnel.mutateAsync({ funnelId });
+      await syncFunnel(funnelId);
     } finally {
       setSyncingFunnelId(null);
     }
@@ -55,6 +56,11 @@ export function SyncStatusPanel() {
       return { status: 'manual', label: 'Sincronização manual', color: 'outline' };
     }
     return { status: 'auto', label: 'Sincronização automática', color: 'default' };
+  };
+
+  const getProgressPercentage = () => {
+    if (!progress.isActive || progress.totalRows === 0) return 0;
+    return Math.round((progress.processedRows / progress.totalRows) * 100);
   };
 
   if (isLoading) {
@@ -83,7 +89,7 @@ export function SyncStatusPanel() {
           </div>
           <Button
             onClick={handleSyncAll}
-            disabled={syncAllFunnels.isPending || funnelsWithSheets.length === 0}
+            disabled={syncAllFunnels.isPending || funnelsWithSheets.length === 0 || progress.isActive}
           >
             {syncAllFunnels.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -94,7 +100,30 @@ export function SyncStatusPanel() {
           </Button>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {/* Progress indicator */}
+        {progress.isActive && (
+          <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Importando leads...</span>
+              <span className="text-muted-foreground">
+                {progress.processedRows.toLocaleString()} / {progress.totalRows.toLocaleString()} linhas
+              </span>
+            </div>
+            <Progress value={getProgressPercentage()} className="h-2" />
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3 text-green-500" />
+                {progress.imported} importados
+              </span>
+              <span className="flex items-center gap-1">
+                <XCircle className="h-3 w-3 text-yellow-500" />
+                {progress.skipped} duplicados
+              </span>
+            </div>
+          </div>
+        )}
+
         {funnelsWithSheets.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -117,7 +146,7 @@ export function SyncStatusPanel() {
             <TableBody>
               {funnelsWithSheets.map((funnel) => {
                 const syncStatus = getSyncStatus(funnel);
-                const isSyncing = syncingFunnelId === funnel.id;
+                const isSyncing = syncingFunnelId === funnel.id || (progress.isActive && progress.funnelId === funnel.id);
 
                 return (
                   <TableRow key={funnel.id}>
@@ -132,7 +161,7 @@ export function SyncStatusPanel() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={syncStatus.color as any}>
+                      <Badge variant={syncStatus.color as "default" | "secondary" | "outline"}>
                         {syncStatus.label}
                       </Badge>
                     </TableCell>
@@ -164,7 +193,7 @@ export function SyncStatusPanel() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSyncFunnel(funnel.id)}
-                        disabled={isSyncing || syncStatus.status === 'not-configured'}
+                        disabled={isSyncing || syncStatus.status === 'not-configured' || progress.isActive}
                       >
                         {isSyncing ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
