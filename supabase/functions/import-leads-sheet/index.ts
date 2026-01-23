@@ -5,6 +5,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Constants for pagination
+const BATCH_SIZE = 2000; // Process 2000 rows per execution
+const INSERT_BATCH_SIZE = 100;
+
 interface ColumnMapping {
   full_name?: string;
   phone?: string;
@@ -36,6 +40,27 @@ interface ImportRequest {
   action?: 'import' | 'fetch-headers' | 'test-connection';
   sheetUrl?: string;
   sheetName?: string;
+  startRow?: number; // For pagination
+}
+
+interface ImportResponse {
+  success: boolean;
+  totalImported?: number;
+  totalSkipped?: number;
+  hasMore?: boolean;
+  nextRow?: number;
+  totalRows?: number;
+  processedRows?: number;
+  results?: Array<{
+    funnelId: string;
+    funnelName: string;
+    imported: number;
+    skipped: number;
+    errors: string[];
+  }>;
+  error?: string;
+  headers?: string[];
+  message?: string;
 }
 
 // Base64 URL encoding
@@ -60,17 +85,9 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
   const encodedClaim = base64UrlEncode(JSON.stringify(claim));
   const signatureInput = `${encodedHeader}.${encodedClaim}`;
 
-  /**
-   * Normalizes a Google Service Account private key from various input formats:
-   * - Full service-account JSON
-   * - PEM string with headers (PKCS#8 or PKCS#1)
-   * - Raw base64/base64url encoded key
-   * Returns the raw DER bytes as Uint8Array ready for PKCS#8 import.
-   */
   const normalizeAndParsePrivateKey = (input: string): Uint8Array => {
     let raw = (input ?? '').trim();
 
-    // Strip wrapping quotes if the secret was saved as a quoted string
     if (
       (raw.startsWith('"') && raw.endsWith('"')) ||
       (raw.startsWith("'") && raw.endsWith("'"))
@@ -78,39 +95,28 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
       raw = raw.slice(1, -1);
     }
 
-    // If user pasted the full service-account JSON, extract private_key
     if (raw.startsWith('{') && raw.includes('private_key')) {
       try {
         const obj = JSON.parse(raw);
         if (typeof obj?.private_key === 'string') raw = obj.private_key;
       } catch {
-        // Try regex extraction for malformed JSON
         const m = raw.match(/"private_key"\s*:\s*"((?:[^"\\]|\\.)*)"/);
         if (m?.[1]) raw = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
       }
     }
 
-    // Turn escaped newlines ("\\n") into actual newlines
     raw = raw.replace(/\\n/g, '\n');
 
-    // Detect key type from PEM header
     const isPKCS1 = raw.includes('-----BEGIN RSA PRIVATE KEY-----');
     const isPKCS8 = raw.includes('-----BEGIN PRIVATE KEY-----');
 
-    // Remove any PEM header/footer lines
     raw = raw.replace(/-----BEGIN [^-]+-----/g, '').replace(/-----END [^-]+-----/g, '');
-
-    // Remove all whitespace/newlines
     raw = raw.replace(/\s+/g, '');
-
-    // If the content is base64url, convert to standard base64
     raw = raw.replace(/-/g, '+').replace(/_/g, '/');
 
-    // Ensure correct padding for atob
     const pad = raw.length % 4;
     if (pad) raw += '='.repeat(4 - pad);
 
-    // Decode base64 to binary
     let binaryKey: Uint8Array;
     try {
       binaryKey = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
@@ -124,72 +130,36 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
       binaryLength: binaryKey.length,
     });
 
-    // If the key is PKCS#1 (RSA PRIVATE KEY), we need to wrap it in PKCS#8 format
-    // PKCS#8 header for RSA keys (AlgorithmIdentifier for RSA)
     if (isPKCS1 || (!isPKCS8 && !isPKCS1 && binaryKey.length > 0)) {
-      // Check if it looks like PKCS#1 by examining ASN.1 structure
-      // PKCS#1 starts with SEQUENCE { INTEGER (version 0), ... }
-      // PKCS#8 starts with SEQUENCE { INTEGER (version 0), AlgorithmIdentifier, OCTET STRING }
-      
-      // Try to determine if this is PKCS#1 or PKCS#8 by ASN.1 analysis
-      // PKCS#1: 30 82 XX XX 02 01 00 02 82 ... (SEQUENCE, INTEGER 0, INTEGER n, ...)
-      // PKCS#8: 30 82 XX XX 02 01 00 30 0D ... (SEQUENCE, INTEGER 0, SEQUENCE AlgId, ...)
-      
       if (binaryKey.length > 10) {
-        // Check if 7th-8th bytes are "30 0D" (PKCS#8 AlgorithmIdentifier) or "02 82" (PKCS#1 modulus)
         const byte7 = binaryKey[6];
         const byte8 = binaryKey[7];
         
         const looksLikePKCS8 = byte7 === 0x30 && byte8 === 0x0D;
         const looksLikePKCS1 = byte7 === 0x02 && (byte8 === 0x82 || byte8 === 0x81);
 
-        console.log('ASN.1 detection:', { byte7: byte7.toString(16), byte8: byte8.toString(16), looksLikePKCS8, looksLikePKCS1 });
-
         if (looksLikePKCS1 || (isPKCS1 && !looksLikePKCS8)) {
-          // Wrap PKCS#1 in PKCS#8 envelope
-          // PKCS#8 structure: SEQUENCE { INTEGER 0, AlgorithmIdentifier, OCTET STRING { PKCS#1 key } }
-          // AlgorithmIdentifier for RSA: SEQUENCE { OID 1.2.840.113549.1.1.1, NULL }
-          
-          const pkcs8Header = new Uint8Array([
-            0x30, 0x82, 0x00, 0x00, // SEQUENCE, length placeholder (will be filled)
-            0x02, 0x01, 0x00,       // INTEGER 0 (version)
-            0x30, 0x0D,             // SEQUENCE (AlgorithmIdentifier)
-            0x06, 0x09,             // OID
-            0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01, // 1.2.840.113549.1.1.1 (rsaEncryption)
-            0x05, 0x00,             // NULL
-            0x04, 0x82, 0x00, 0x00  // OCTET STRING, length placeholder
-          ]);
-
-          // Calculate lengths
           const pkcs1Length = binaryKey.length;
-          const octetStringLength = pkcs1Length + 4; // OCTET STRING header (04 82 XX XX) + content
-          const totalLength = 3 + 15 + 4 + pkcs1Length; // version(3) + algId(15) + octetHdr(4) + key
+          const totalLength = 3 + 15 + 4 + pkcs1Length;
 
-          // Create PKCS#8 wrapper
           const pkcs8Key = new Uint8Array(4 + totalLength);
-          pkcs8Key[0] = 0x30; // SEQUENCE
-          pkcs8Key[1] = 0x82; // Long form length
+          pkcs8Key[0] = 0x30;
+          pkcs8Key[1] = 0x82;
           pkcs8Key[2] = (totalLength >> 8) & 0xFF;
           pkcs8Key[3] = totalLength & 0xFF;
-          pkcs8Key[4] = 0x02; // INTEGER
+          pkcs8Key[4] = 0x02;
           pkcs8Key[5] = 0x01;
-          pkcs8Key[6] = 0x00; // version 0
-          pkcs8Key[7] = 0x30; // SEQUENCE (AlgorithmIdentifier)
+          pkcs8Key[6] = 0x00;
+          pkcs8Key[7] = 0x30;
           pkcs8Key[8] = 0x0D;
-          // OID 1.2.840.113549.1.1.1
           pkcs8Key.set([0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01], 9);
-          pkcs8Key[20] = 0x05; // NULL
+          pkcs8Key[20] = 0x05;
           pkcs8Key[21] = 0x00;
-          pkcs8Key[22] = 0x04; // OCTET STRING
-          pkcs8Key[23] = 0x82; // Long form length
+          pkcs8Key[22] = 0x04;
+          pkcs8Key[23] = 0x82;
           pkcs8Key[24] = (pkcs1Length >> 8) & 0xFF;
           pkcs8Key[25] = pkcs1Length & 0xFF;
           pkcs8Key.set(binaryKey, 26);
-
-          console.log('Wrapped PKCS#1 key in PKCS#8 envelope:', { 
-            originalLength: pkcs1Length, 
-            wrappedLength: pkcs8Key.length 
-          });
 
           return pkcs8Key;
         }
@@ -257,7 +227,6 @@ function normalizeServiceAccountEmail(input: string | null | undefined): string 
   const extractClientEmail = (s: string): string | null => {
     const candidate = stripQuotes(s);
 
-    // JSON path
     if (candidate.startsWith('{') && candidate.includes('client_email')) {
       try {
         const obj = JSON.parse(candidate);
@@ -266,7 +235,6 @@ function normalizeServiceAccountEmail(input: string | null | undefined): string 
         // fallthrough to regex extraction
       }
 
-      // Regex fallback (handles malformed “JSON” with single quotes etc.)
       const m1 = candidate.match(/client_email\s*"?\s*:\s*"([^"]+)"/);
       if (m1?.[1]) return m1[1].trim();
       const m2 = candidate.match(/client_email\s*'?\s*:\s*'([^']+)'/);
@@ -278,11 +246,9 @@ function normalizeServiceAccountEmail(input: string | null | undefined): string 
 
   let raw = stripQuotes(input ?? '');
 
-  // Direct JSON / malformed JSON
   const extracted = extractClientEmail(raw);
   if (extracted) return extracted;
 
-  // Base64/base64url encoded JSON (common when saving secrets)
   if (!raw.includes('@') && /^[A-Za-z0-9+/=_-]+$/.test(raw) && raw.length > 80) {
     try {
       let b64 = raw.replace(/-/g, '+').replace(/_/g, '/');
@@ -300,7 +266,6 @@ function normalizeServiceAccountEmail(input: string | null | undefined): string 
   return raw;
 }
 
-// Get Google access token
 async function getGoogleAccessToken(email: string, privateKey: string): Promise<string> {
   const jwt = await createGoogleJWT(email, privateKey);
 
@@ -319,13 +284,11 @@ async function getGoogleAccessToken(email: string, privateKey: string): Promise<
   return data.access_token;
 }
 
-// Extract spreadsheet ID from URL
 function extractSpreadsheetId(url: string): string | null {
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   return match ? match[1] : null;
 }
 
-// Fetch sheet headers
 async function fetchSheetHeaders(
   accessToken: string,
   spreadsheetId: string,
@@ -346,15 +309,41 @@ async function fetchSheetHeaders(
   return data.values?.[0] || [];
 }
 
-// Fetch all sheet data
+// Fetch sheet data with optional range for pagination
 async function fetchSheetData(
   accessToken: string,
   spreadsheetId: string,
-  sheetName: string
-): Promise<string[][]> {
+  sheetName: string,
+  startRow?: number,
+  endRow?: number
+): Promise<{ rows: string[][]; totalRows: number }> {
   const encodedSheetName = encodeURIComponent(sheetName);
+  
+  // First, get the total row count
+  const metadataResponse = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(title,gridProperties(rowCount)))`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!metadataResponse.ok) {
+    const error = await metadataResponse.text();
+    throw new Error(`Failed to fetch sheet metadata: ${error}`);
+  }
+
+  const metadata = await metadataResponse.json();
+  const sheet = metadata.sheets?.find((s: { properties: { title: string } }) => 
+    s.properties.title === sheetName
+  );
+  const totalRows = sheet?.properties?.gridProperties?.rowCount || 0;
+
+  // Build range for data fetch
+  let range = encodedSheetName;
+  if (startRow !== undefined && endRow !== undefined) {
+    range = `${encodedSheetName}!A${startRow}:ZZ${endRow}`;
+  }
+
   const response = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodedSheetName}`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`,
     { headers: { Authorization: `Bearer ${accessToken}` } }
   );
 
@@ -364,32 +353,24 @@ async function fetchSheetData(
   }
 
   const data = await response.json();
-  return data.values || [];
+  return { rows: data.values || [], totalRows };
 }
 
-// Parse revenue string to number
 function parseRevenue(value: string | undefined): number | null {
   if (!value) return null;
-  
-  // Remove currency symbols and spaces
   const cleaned = value.replace(/[R$\s.]/g, '').replace(',', '.');
   const parsed = parseFloat(cleaned);
-  
   return isNaN(parsed) ? null : parsed;
 }
 
-// Parse boolean from string
 function parseBoolean(value: string | undefined): boolean | null {
   if (!value) return null;
-  
   const lower = value.toLowerCase().trim();
   if (['sim', 'yes', 'true', '1', 's'].includes(lower)) return true;
   if (['não', 'nao', 'no', 'false', '0', 'n'].includes(lower)) return false;
-  
   return null;
 }
 
-// Map row data to lead object
 function mapRowToLead(
   row: string[],
   headers: string[],
@@ -405,8 +386,6 @@ function mapRowToLead(
   };
 
   const fullName = getColumnValue(mapping.full_name);
-  
-  // full_name is required
   if (!fullName) return null;
 
   return {
@@ -429,6 +408,54 @@ function mapRowToLead(
     classification: 'bronze',
     imported_at: new Date().toISOString(),
   };
+}
+
+// Fetch existing duplicates in batch (optimized)
+// deno-lint-ignore no-explicit-any
+async function fetchExistingDuplicates(
+  supabase: any,
+  funnelId: string
+): Promise<{ sheetRowIds: Set<string>; emails: Set<string>; phones: Set<string> }> {
+  console.log('Fetching existing leads for deduplication...');
+  
+  // Fetch all in parallel
+  const [sheetRowResult, emailResult, phoneResult] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('sheet_row_id')
+      .eq('funnel_id', funnelId)
+      .not('sheet_row_id', 'is', null),
+    supabase
+      .from('leads')
+      .select('email')
+      .eq('funnel_id', funnelId)
+      .not('email', 'is', null),
+    supabase
+      .from('leads')
+      .select('phone')
+      .eq('funnel_id', funnelId)
+      .not('phone', 'is', null),
+  ]);
+
+  const sheetRowIds = new Set<string>(
+    ((sheetRowResult.data || []) as Array<{ sheet_row_id: string | null }>)
+      .map(l => l.sheet_row_id)
+      .filter((v): v is string => Boolean(v))
+  );
+  const emails = new Set<string>(
+    ((emailResult.data || []) as Array<{ email: string | null }>)
+      .map(l => l.email?.toLowerCase())
+      .filter((v): v is string => Boolean(v))
+  );
+  const phones = new Set<string>(
+    ((phoneResult.data || []) as Array<{ phone: string | null }>)
+      .map(l => l.phone)
+      .filter((v): v is string => Boolean(v))
+  );
+
+  console.log(`Found ${sheetRowIds.size} sheet_row_ids, ${emails.size} emails, ${phones.size} phones`);
+  
+  return { sheetRowIds, emails, phones };
 }
 
 Deno.serve(async (req) => {
@@ -454,18 +481,10 @@ Deno.serve(async (req) => {
 
     const serviceEmail = normalizeServiceAccountEmail(serviceEmailRaw);
     if (!serviceEmail || !serviceEmail.includes('@')) {
-      console.log('Invalid GOOGLE_SERVICE_ACCOUNT_EMAIL', {
-        rawLength: serviceEmailRaw?.length ?? 0,
-        normalizedLength: serviceEmail?.length ?? 0,
-        hasAt: serviceEmail?.includes('@') ?? false,
-        looksLikeJson: (serviceEmailRaw ?? '').trim().startsWith('{'),
-      });
-
       return new Response(
         JSON.stringify({
           success: false,
-          error:
-            'Google Service Account email is invalid. Set GOOGLE_SERVICE_ACCOUNT_EMAIL to the service-account client_email (…@….iam.gserviceaccount.com). You may also paste the full service-account JSON (or base64 of it) and we will extract client_email.',
+          error: 'Google Service Account email is invalid.',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
@@ -473,9 +492,9 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const body: ImportRequest = await req.json().catch(() => ({}));
-    const { funnelId, syncAll, action, sheetUrl, sheetName } = body;
+    const { funnelId, syncAll, action, sheetUrl, sheetName, startRow = 2 } = body;
 
-    console.log('Import leads request:', { funnelId, syncAll, action });
+    console.log('Import leads request:', { funnelId, syncAll, action, startRow });
 
     // Handle test connection
     if (action === 'test-connection' && sheetUrl && sheetName) {
@@ -542,13 +561,159 @@ Deno.serve(async (req) => {
 
     if (!funnels || funnels.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'No funnels to sync', imported: 0 }),
+        JSON.stringify({ success: true, message: 'No funnels to sync', totalImported: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const accessToken = await getGoogleAccessToken(serviceEmail, privateKey);
     
+    // For single funnel sync with pagination
+    if (funnelId && funnels.length === 1) {
+      const funnel = funnels[0] as FunnelData;
+      
+      const spreadsheetId = extractSpreadsheetId(funnel.google_sheet_url);
+      if (!spreadsheetId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid Google Sheets URL' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      if (!funnel.column_mapping) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Column mapping not configured' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      console.log(`Processing funnel: ${funnel.name} (${funnel.id}) starting from row ${startRow}`);
+
+      // Fetch headers (row 1)
+      const headers = await fetchSheetHeaders(accessToken, spreadsheetId, funnel.sheet_name);
+      
+      // Calculate end row for this batch
+      const endRow = startRow + BATCH_SIZE - 1;
+      
+      // Fetch data for this batch
+      const { rows: dataRows, totalRows } = await fetchSheetData(
+        accessToken, 
+        spreadsheetId, 
+        funnel.sheet_name,
+        startRow,
+        endRow
+      );
+
+      console.log(`Fetched ${dataRows.length} rows (${startRow}-${endRow}), total rows in sheet: ${totalRows}`);
+
+      if (dataRows.length === 0) {
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            totalImported: 0, 
+            totalSkipped: 0,
+            hasMore: false,
+            message: 'No more rows to process'
+          } as ImportResponse),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Fetch all existing duplicates in batch (3 queries instead of N)
+      const { sheetRowIds, emails, phones } = await fetchExistingDuplicates(supabase, funnel.id);
+
+      let imported = 0;
+      let skipped = 0;
+      const leadsToInsert: Record<string, unknown>[] = [];
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const absoluteRowIndex = startRow + i; // Actual row number in sheet
+        const sheetRowId = `${funnel.id}_row_${absoluteRowIndex}`;
+
+        // Skip if already imported by sheet_row_id (O(1) lookup)
+        if (sheetRowIds.has(sheetRowId)) {
+          skipped++;
+          continue;
+        }
+
+        const lead = mapRowToLead(
+          row,
+          headers,
+          funnel.column_mapping,
+          funnel.id,
+          absoluteRowIndex,
+          funnel.google_sheet_url
+        );
+
+        if (lead) {
+          const email = (lead.email as string)?.toLowerCase();
+          const phone = lead.phone as string;
+
+          // Check duplicates by email or phone (O(1) lookup)
+          if ((email && emails.has(email)) || (phone && phones.has(phone))) {
+            skipped++;
+            continue;
+          }
+
+          // Add to pending insert and update local sets
+          leadsToInsert.push(lead);
+          if (email) emails.add(email);
+          if (phone) phones.add(phone);
+          sheetRowIds.add(sheetRowId);
+        }
+      }
+
+      // Insert leads in batches
+      if (leadsToInsert.length > 0) {
+        console.log(`Inserting ${leadsToInsert.length} leads in batches of ${INSERT_BATCH_SIZE}`);
+        
+        for (let i = 0; i < leadsToInsert.length; i += INSERT_BATCH_SIZE) {
+          const batch = leadsToInsert.slice(i, i + INSERT_BATCH_SIZE);
+          const { error: insertError } = await supabase
+            .from('leads')
+            .insert(batch);
+
+          if (insertError) {
+            console.error(`Insert error for batch ${i / INSERT_BATCH_SIZE + 1}:`, insertError.message);
+          } else {
+            imported += batch.length;
+          }
+        }
+      }
+
+      // Check if there are more rows to process
+      const processedUpTo = startRow + dataRows.length - 1;
+      const hasMore = processedUpTo < totalRows - 1; // -1 because row 1 is header
+      const nextRow = hasMore ? processedUpTo + 1 : undefined;
+
+      // Update last_sync_at only when complete
+      if (!hasMore) {
+        await supabase
+          .from('funnels')
+          .update({ last_sync_at: new Date().toISOString() })
+          .eq('id', funnel.id);
+      }
+
+      console.log(`Batch complete: imported ${imported}, skipped ${skipped}, hasMore: ${hasMore}`);
+
+      const response: ImportResponse = {
+        success: true,
+        totalImported: imported,
+        totalSkipped: skipped,
+        hasMore,
+        nextRow,
+        totalRows: totalRows - 1, // Exclude header row
+        processedRows: processedUpTo - 1, // Rows processed so far (excluding header)
+      };
+
+      return new Response(
+        JSON.stringify(response),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // For syncAll - process each funnel (simplified, no pagination for syncAll)
     const results: { funnelId: string; funnelName: string; imported: number; skipped: number; errors: string[] }[] = [];
 
     for (const funnel of funnels as FunnelData[]) {
@@ -576,37 +741,28 @@ Deno.serve(async (req) => {
 
         console.log(`Processing funnel: ${funnel.name} (${funnel.id})`);
 
-        const sheetData = await fetchSheetData(accessToken, spreadsheetId, funnel.sheet_name);
+        const headers = await fetchSheetHeaders(accessToken, spreadsheetId, funnel.sheet_name);
+        const { rows: allRows } = await fetchSheetData(accessToken, spreadsheetId, funnel.sheet_name);
         
-        if (sheetData.length < 2) {
+        if (allRows.length < 2) {
           funnelResult.errors.push('No data rows found in sheet');
           results.push(funnelResult);
           continue;
         }
 
-        const headers = sheetData[0];
-        const dataRows = sheetData.slice(1);
+        const dataRows = allRows.slice(1); // Skip header
 
-        console.log(`Found ${dataRows.length} rows to process`);
-
-        // Get existing sheet_row_ids for this funnel to check duplicates
-        const { data: existingLeads } = await supabase
-          .from('leads')
-          .select('sheet_row_id')
-          .eq('funnel_id', funnel.id)
-          .not('sheet_row_id', 'is', null);
-
-        const existingRowIds = new Set(existingLeads?.map(l => l.sheet_row_id) || []);
+        // Fetch duplicates in batch
+        const { sheetRowIds, emails, phones } = await fetchExistingDuplicates(supabase, funnel.id);
 
         const leadsToInsert: Record<string, unknown>[] = [];
 
         for (let i = 0; i < dataRows.length; i++) {
           const row = dataRows[i];
-          const rowIndex = i + 2; // Account for header row and 0-indexing
+          const rowIndex = i + 2;
           const sheetRowId = `${funnel.id}_row_${rowIndex}`;
 
-          // Skip if already imported
-          if (existingRowIds.has(sheetRowId)) {
+          if (sheetRowIds.has(sheetRowId)) {
             funnelResult.skipped++;
             continue;
           }
@@ -621,54 +777,35 @@ Deno.serve(async (req) => {
           );
 
           if (lead) {
-            // Additional duplicate check by email or phone
-            const phone = lead.phone as string | null;
-            const email = lead.email as string | null;
-            
-            if (phone || email) {
-              let duplicateQuery = supabase
-                .from('leads')
-                .select('id')
-                .eq('funnel_id', funnel.id);
-              
-              if (phone && email) {
-                duplicateQuery = duplicateQuery.or(`phone.eq.${phone},email.eq.${email}`);
-              } else if (phone) {
-                duplicateQuery = duplicateQuery.eq('phone', phone);
-              } else if (email) {
-                duplicateQuery = duplicateQuery.eq('email', email);
-              }
+            const email = (lead.email as string)?.toLowerCase();
+            const phone = lead.phone as string;
 
-              const { data: duplicates } = await duplicateQuery.limit(1);
-              
-              if (duplicates && duplicates.length > 0) {
-                funnelResult.skipped++;
-                continue;
-              }
+            if ((email && emails.has(email)) || (phone && phones.has(phone))) {
+              funnelResult.skipped++;
+              continue;
             }
 
             leadsToInsert.push(lead);
+            if (email) emails.add(email);
+            if (phone) phones.add(phone);
+            sheetRowIds.add(sheetRowId);
           }
         }
 
-        // Insert leads in batches
-        if (leadsToInsert.length > 0) {
-          const batchSize = 100;
-          for (let i = 0; i < leadsToInsert.length; i += batchSize) {
-            const batch = leadsToInsert.slice(i, i + batchSize);
-            const { error: insertError } = await supabase
-              .from('leads')
-              .insert(batch);
+        // Insert in batches
+        for (let i = 0; i < leadsToInsert.length; i += INSERT_BATCH_SIZE) {
+          const batch = leadsToInsert.slice(i, i + INSERT_BATCH_SIZE);
+          const { error: insertError } = await supabase
+            .from('leads')
+            .insert(batch);
 
-            if (insertError) {
-              funnelResult.errors.push(`Insert error: ${insertError.message}`);
-            } else {
-              funnelResult.imported += batch.length;
-            }
+          if (insertError) {
+            funnelResult.errors.push(`Insert error: ${insertError.message}`);
+          } else {
+            funnelResult.imported += batch.length;
           }
         }
 
-        // Update last_sync_at
         await supabase
           .from('funnels')
           .update({ last_sync_at: new Date().toISOString() })
