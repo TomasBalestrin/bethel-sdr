@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Users, Workflow, Columns, Pencil, Trash2, Plus, Share2, Scale } from 'lucide-react';
+import { SyncStatusPanel } from '@/components/admin/SyncStatusPanel';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -262,6 +263,9 @@ export default function Admin() {
                 </Table>
               </div>
             )}
+
+            {/* Sync Status Panel */}
+            <SyncStatusPanel />
           </TabsContent>
 
           {/* Columns Tab */}
