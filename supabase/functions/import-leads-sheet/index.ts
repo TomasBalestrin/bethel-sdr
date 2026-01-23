@@ -129,6 +129,30 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
   return `${signatureInput}.${encodedSignature}`;
 }
 
+function normalizeServiceAccountEmail(input: string | null | undefined): string {
+  let raw = (input ?? '').trim();
+
+  // Strip wrapping quotes if the secret was saved as a quoted string
+  if (
+    (raw.startsWith('"') && raw.endsWith('"')) ||
+    (raw.startsWith("'") && raw.endsWith("'"))
+  ) {
+    raw = raw.slice(1, -1).trim();
+  }
+
+  // If user pasted the full service-account JSON here, extract client_email
+  if (raw.startsWith('{') && raw.includes('"client_email"')) {
+    try {
+      const obj = JSON.parse(raw);
+      if (typeof obj?.client_email === 'string') raw = obj.client_email;
+    } catch {
+      // ignore
+    }
+  }
+
+  return raw;
+}
+
 // Get Google access token
 async function getGoogleAccessToken(email: string, privateKey: string): Promise<string> {
   const jwt = await createGoogleJWT(email, privateKey);
@@ -268,14 +292,26 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const serviceEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
+    const serviceEmailRaw = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL');
     const privateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY');
 
-    if (!serviceEmail || !privateKey) {
+    if (!serviceEmailRaw || !privateKey) {
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'Google Service Account credentials not configured' 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
+
+    const serviceEmail = normalizeServiceAccountEmail(serviceEmailRaw);
+    if (!serviceEmail || !serviceEmail.includes('@')) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            'Google Service Account email is invalid. Ensure GOOGLE_SERVICE_ACCOUNT_EMAIL is set to the client_email from the service-account JSON.',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
