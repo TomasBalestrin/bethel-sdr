@@ -60,27 +60,60 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
   const encodedClaim = base64UrlEncode(JSON.stringify(claim));
   const signatureInput = `${encodedHeader}.${encodedClaim}`;
 
-  // Import the private key - handle various formats
-  const pemHeader = '-----BEGIN PRIVATE KEY-----';
-  const pemFooter = '-----END PRIVATE KEY-----';
-  
-  // First, handle escaped newlines from environment variables
-  let cleanedKey = privateKey
-    .replace(/\\n/g, '\n')  // Replace escaped \n with actual newlines
-    .replace(pemHeader, '')
-    .replace(pemFooter, '')
-    .replace(/[\n\r\s]/g, '');  // Remove all whitespace and newlines
+  const normalizeServiceAccountPrivateKey = (input: string): string => {
+    let raw = (input ?? '').trim();
+    // Strip wrapping quotes if the secret was saved as a quoted string
+    if (
+      (raw.startsWith('"') && raw.endsWith('"')) ||
+      (raw.startsWith("'") && raw.endsWith("'"))
+    ) {
+      raw = raw.slice(1, -1);
+    }
 
-  // Validate base64 string
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleanedKey)) {
-    throw new Error('Invalid private key format: contains non-base64 characters');
+    // If user pasted the full service-account JSON, extract private_key
+    if (raw.startsWith('{') && raw.includes('"private_key"')) {
+      try {
+        const obj = JSON.parse(raw);
+        if (typeof obj?.private_key === 'string') raw = obj.private_key;
+      } catch {
+        // ignore JSON parse error, continue trying to treat as PEM
+      }
+    }
+
+    // Turn escaped newlines ("\\n") into actual newlines
+    raw = raw.replace(/\\n/g, '\n');
+
+    // Remove any PEM header/footer lines (supports both PRIVATE KEY and RSA PRIVATE KEY)
+    raw = raw.replace(/-----BEGIN [^-]+-----/g, '').replace(/-----END [^-]+-----/g, '');
+
+    // Remove all whitespace/newlines
+    raw = raw.replace(/\s+/g, '');
+
+    // If the content is base64url, convert to standard base64
+    raw = raw.replace(/-/g, '+').replace(/_/g, '/');
+
+    // Ensure correct padding for atob
+    const pad = raw.length % 4;
+    if (pad) raw += '='.repeat(4 - pad);
+
+    return raw;
+  };
+
+  let binaryKey: Uint8Array;
+  try {
+    const keyBase64 = normalizeServiceAccountPrivateKey(privateKey);
+    binaryKey = Uint8Array.from(atob(keyBase64), (c) => c.charCodeAt(0));
+  } catch (e) {
+    throw new Error(
+      `Failed to decode private key. Ensure GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is a PEM string (including BEGIN/END lines) or a full service-account JSON. Details: ${
+        e instanceof Error ? e.message : String(e)
+      }`
+    );
   }
-
-  const binaryKey = Uint8Array.from(atob(cleanedKey), (c) => c.charCodeAt(0));
 
   const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
-    binaryKey,
+    (binaryKey.buffer as ArrayBuffer),
     { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign']
