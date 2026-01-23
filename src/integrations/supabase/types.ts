@@ -306,32 +306,41 @@ export type Database = {
       funnels: {
         Row: {
           active: boolean
+          auto_sync_enabled: boolean | null
           column_mapping: Json | null
           created_at: string
           google_sheet_url: string | null
           id: string
+          last_sync_at: string | null
           name: string
           sheet_name: string | null
+          sync_interval_minutes: number | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          auto_sync_enabled?: boolean | null
           column_mapping?: Json | null
           created_at?: string
           google_sheet_url?: string | null
           id?: string
+          last_sync_at?: string | null
           name: string
           sheet_name?: string | null
+          sync_interval_minutes?: number | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          auto_sync_enabled?: boolean | null
           column_mapping?: Json | null
           created_at?: string
           google_sheet_url?: string | null
           id?: string
+          last_sync_at?: string | null
           name?: string
           sheet_name?: string | null
+          sync_interval_minutes?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -478,6 +487,8 @@ export type Database = {
           phone: string | null
           qualification: string | null
           revenue: number | null
+          sheet_row_id: string | null
+          sheet_source_url: string | null
           state: string | null
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string
@@ -508,6 +519,8 @@ export type Database = {
           phone?: string | null
           qualification?: string | null
           revenue?: number | null
+          sheet_row_id?: string | null
+          sheet_source_url?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string
@@ -538,6 +551,8 @@ export type Database = {
           phone?: string | null
           qualification?: string | null
           revenue?: number | null
+          sheet_row_id?: string | null
+          sheet_source_url?: string | null
           state?: string | null
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string

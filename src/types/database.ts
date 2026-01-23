@@ -28,10 +28,14 @@ export interface Funnel {
   name: string;
   google_sheet_url: string | null;
   sheet_name: string | null;
-  column_mapping: Record<string, string>;
+  column_mapping: Record<string, string> | null;
   active: boolean;
   created_at: string;
   updated_at: string;
+  // Sync fields
+  auto_sync_enabled: boolean;
+  last_sync_at: string | null;
+  sync_interval_minutes: number;
 }
 
 export interface Lead {
