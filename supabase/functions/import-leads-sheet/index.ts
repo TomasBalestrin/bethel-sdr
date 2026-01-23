@@ -60,8 +60,16 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
   const encodedClaim = base64UrlEncode(JSON.stringify(claim));
   const signatureInput = `${encodedHeader}.${encodedClaim}`;
 
-  const normalizeServiceAccountPrivateKey = (input: string): string => {
+  /**
+   * Normalizes a Google Service Account private key from various input formats:
+   * - Full service-account JSON
+   * - PEM string with headers (PKCS#8 or PKCS#1)
+   * - Raw base64/base64url encoded key
+   * Returns the raw DER bytes as Uint8Array ready for PKCS#8 import.
+   */
+  const normalizeAndParsePrivateKey = (input: string): Uint8Array => {
     let raw = (input ?? '').trim();
+
     // Strip wrapping quotes if the secret was saved as a quoted string
     if (
       (raw.startsWith('"') && raw.endsWith('"')) ||
@@ -71,19 +79,25 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
     }
 
     // If user pasted the full service-account JSON, extract private_key
-    if (raw.startsWith('{') && raw.includes('"private_key"')) {
+    if (raw.startsWith('{') && raw.includes('private_key')) {
       try {
         const obj = JSON.parse(raw);
         if (typeof obj?.private_key === 'string') raw = obj.private_key;
       } catch {
-        // ignore JSON parse error, continue trying to treat as PEM
+        // Try regex extraction for malformed JSON
+        const m = raw.match(/"private_key"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+        if (m?.[1]) raw = m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"');
       }
     }
 
     // Turn escaped newlines ("\\n") into actual newlines
     raw = raw.replace(/\\n/g, '\n');
 
-    // Remove any PEM header/footer lines (supports both PRIVATE KEY and RSA PRIVATE KEY)
+    // Detect key type from PEM header
+    const isPKCS1 = raw.includes('-----BEGIN RSA PRIVATE KEY-----');
+    const isPKCS8 = raw.includes('-----BEGIN PRIVATE KEY-----');
+
+    // Remove any PEM header/footer lines
     raw = raw.replace(/-----BEGIN [^-]+-----/g, '').replace(/-----END [^-]+-----/g, '');
 
     // Remove all whitespace/newlines
@@ -96,28 +110,127 @@ async function createGoogleJWT(email: string, privateKey: string): Promise<strin
     const pad = raw.length % 4;
     if (pad) raw += '='.repeat(4 - pad);
 
-    return raw;
+    // Decode base64 to binary
+    let binaryKey: Uint8Array;
+    try {
+      binaryKey = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
+    } catch (e) {
+      throw new Error(`Base64 decode failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    console.log('Private key parsing:', {
+      detectedFormat: isPKCS1 ? 'PKCS#1' : isPKCS8 ? 'PKCS#8' : 'unknown/raw',
+      base64Length: raw.length,
+      binaryLength: binaryKey.length,
+    });
+
+    // If the key is PKCS#1 (RSA PRIVATE KEY), we need to wrap it in PKCS#8 format
+    // PKCS#8 header for RSA keys (AlgorithmIdentifier for RSA)
+    if (isPKCS1 || (!isPKCS8 && !isPKCS1 && binaryKey.length > 0)) {
+      // Check if it looks like PKCS#1 by examining ASN.1 structure
+      // PKCS#1 starts with SEQUENCE { INTEGER (version 0), ... }
+      // PKCS#8 starts with SEQUENCE { INTEGER (version 0), AlgorithmIdentifier, OCTET STRING }
+      
+      // Try to determine if this is PKCS#1 or PKCS#8 by ASN.1 analysis
+      // PKCS#1: 30 82 XX XX 02 01 00 02 82 ... (SEQUENCE, INTEGER 0, INTEGER n, ...)
+      // PKCS#8: 30 82 XX XX 02 01 00 30 0D ... (SEQUENCE, INTEGER 0, SEQUENCE AlgId, ...)
+      
+      if (binaryKey.length > 10) {
+        // Check if 7th-8th bytes are "30 0D" (PKCS#8 AlgorithmIdentifier) or "02 82" (PKCS#1 modulus)
+        const byte7 = binaryKey[6];
+        const byte8 = binaryKey[7];
+        
+        const looksLikePKCS8 = byte7 === 0x30 && byte8 === 0x0D;
+        const looksLikePKCS1 = byte7 === 0x02 && (byte8 === 0x82 || byte8 === 0x81);
+
+        console.log('ASN.1 detection:', { byte7: byte7.toString(16), byte8: byte8.toString(16), looksLikePKCS8, looksLikePKCS1 });
+
+        if (looksLikePKCS1 || (isPKCS1 && !looksLikePKCS8)) {
+          // Wrap PKCS#1 in PKCS#8 envelope
+          // PKCS#8 structure: SEQUENCE { INTEGER 0, AlgorithmIdentifier, OCTET STRING { PKCS#1 key } }
+          // AlgorithmIdentifier for RSA: SEQUENCE { OID 1.2.840.113549.1.1.1, NULL }
+          
+          const pkcs8Header = new Uint8Array([
+            0x30, 0x82, 0x00, 0x00, // SEQUENCE, length placeholder (will be filled)
+            0x02, 0x01, 0x00,       // INTEGER 0 (version)
+            0x30, 0x0D,             // SEQUENCE (AlgorithmIdentifier)
+            0x06, 0x09,             // OID
+            0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01, // 1.2.840.113549.1.1.1 (rsaEncryption)
+            0x05, 0x00,             // NULL
+            0x04, 0x82, 0x00, 0x00  // OCTET STRING, length placeholder
+          ]);
+
+          // Calculate lengths
+          const pkcs1Length = binaryKey.length;
+          const octetStringLength = pkcs1Length + 4; // OCTET STRING header (04 82 XX XX) + content
+          const totalLength = 3 + 15 + 4 + pkcs1Length; // version(3) + algId(15) + octetHdr(4) + key
+
+          // Create PKCS#8 wrapper
+          const pkcs8Key = new Uint8Array(4 + totalLength);
+          pkcs8Key[0] = 0x30; // SEQUENCE
+          pkcs8Key[1] = 0x82; // Long form length
+          pkcs8Key[2] = (totalLength >> 8) & 0xFF;
+          pkcs8Key[3] = totalLength & 0xFF;
+          pkcs8Key[4] = 0x02; // INTEGER
+          pkcs8Key[5] = 0x01;
+          pkcs8Key[6] = 0x00; // version 0
+          pkcs8Key[7] = 0x30; // SEQUENCE (AlgorithmIdentifier)
+          pkcs8Key[8] = 0x0D;
+          // OID 1.2.840.113549.1.1.1
+          pkcs8Key.set([0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01], 9);
+          pkcs8Key[20] = 0x05; // NULL
+          pkcs8Key[21] = 0x00;
+          pkcs8Key[22] = 0x04; // OCTET STRING
+          pkcs8Key[23] = 0x82; // Long form length
+          pkcs8Key[24] = (pkcs1Length >> 8) & 0xFF;
+          pkcs8Key[25] = pkcs1Length & 0xFF;
+          pkcs8Key.set(binaryKey, 26);
+
+          console.log('Wrapped PKCS#1 key in PKCS#8 envelope:', { 
+            originalLength: pkcs1Length, 
+            wrappedLength: pkcs8Key.length 
+          });
+
+          return pkcs8Key;
+        }
+      }
+    }
+
+    return binaryKey;
   };
 
   let binaryKey: Uint8Array;
   try {
-    const keyBase64 = normalizeServiceAccountPrivateKey(privateKey);
-    binaryKey = Uint8Array.from(atob(keyBase64), (c) => c.charCodeAt(0));
+    binaryKey = normalizeAndParsePrivateKey(privateKey);
   } catch (e) {
     throw new Error(
-      `Failed to decode private key. Ensure GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is a PEM string (including BEGIN/END lines) or a full service-account JSON. Details: ${
+      `Failed to decode private key. Ensure GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is the full service-account JSON or the PEM private_key value. Details: ${
         e instanceof Error ? e.message : String(e)
       }`
     );
   }
 
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    (binaryKey.buffer as ArrayBuffer),
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
+  let cryptoKey: CryptoKey;
+  try {
+    cryptoKey = await crypto.subtle.importKey(
+      'pkcs8',
+      binaryKey.buffer as ArrayBuffer,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+  } catch (e) {
+    console.error('Key import failed:', {
+      binaryKeyLength: binaryKey.length,
+      firstBytes: Array.from(binaryKey.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '),
+      error: e instanceof Error ? e.message : String(e),
+    });
+    throw new Error(
+      `Failed to import private key. The key format may be incorrect. Please ensure you're using the full service-account JSON file content. Error: ${
+        e instanceof Error ? e.message : String(e)
+      }`
+    );
+  }
 
   const signature = await crypto.subtle.sign(
     'RSASSA-PKCS1-v1_5',
