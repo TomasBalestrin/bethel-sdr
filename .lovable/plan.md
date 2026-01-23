@@ -1,88 +1,47 @@
 
-# Plano: Corrigir Importação de Leads do Google Sheets
+# Plano: Adicionar Painel de Sincronização à Página Admin
 
-## Diagnóstico
+## Objetivo
+Integrar o componente `SyncStatusPanel` à página Admin para que os botões de sincronização de leads do Google Sheets fiquem visíveis e acessíveis.
 
-A importação de leads não está funcionando por um **problema de performance e timeout**:
+## Mudanças Necessárias
 
-- A autenticação com Google está correta
-- A planilha está sendo acessada com sucesso
-- **O problema:** A planilha tem **48.107 linhas** e a função está fazendo uma query individual de verificação de duplicação para cada linha
-- Isso causa **timeout** da Edge Function (limite de ~25 segundos)
+### Arquivo: `src/pages/Admin.tsx`
 
-## Solução Técnica
-
-### 1. Otimizar a Verificação de Duplicatas
-
-**Problema atual (linha por linha):**
-```text
-Para cada linha da planilha:
-  → 1 query para verificar duplicata por sheet_row_id
-  → 1 query para verificar duplicata por email/phone
-  = ~96.000 queries para 48.000 linhas
+**1. Adicionar import do componente:**
+```typescript
+import { SyncStatusPanel } from '@/components/admin/SyncStatusPanel';
 ```
 
-**Solução proposta (em lote):**
+**2. Adicionar o SyncStatusPanel na aba "Funis":**
+O painel será adicionado logo após a tabela de funis, dentro do `TabsContent` de "funnels". Isso mantém a sincronização contextualizada com os funis configurados.
+
+### Estrutura Final da Aba Funis
+
 ```text
-1 query para buscar todos os sheet_row_ids existentes
-1 query para buscar todos os emails existentes
-1 query para buscar todos os phones existentes
-= 3 queries total
+┌─────────────────────────────────────────────┐
+│ [+ Novo Funil]                              │
+├─────────────────────────────────────────────┤
+│ Tabela de Funis                             │
+│ - Nome | Google Sheets | Status | Ações     │
+├─────────────────────────────────────────────┤
+│ Sincronização de Leads (SyncStatusPanel)    │
+│ - Botão "Sincronizar Todos"                 │
+│ - Barra de progresso (quando ativo)         │
+│ - Tabela com status de cada funil           │
+└─────────────────────────────────────────────┘
 ```
 
-### 2. Implementar Paginação da Planilha
+## Funcionalidades Disponíveis Após Integração
 
-Para planilhas grandes, processar em lotes de 1000-2000 linhas por execução.
+1. **Botão "Sincronizar Todos"** - Importa leads de todas as planilhas configuradas
+2. **Botão individual por funil** - Ícone ↻ para sincronizar um funil específico
+3. **Barra de progresso** - Mostra o andamento da importação em tempo real
+4. **Contadores** - Exibe quantidade de leads importados vs. duplicados pulados
+5. **Status por funil** - Indica se está configurado, manual ou automático
 
-### 3. Alterações no Código
+## Detalhes Técnicos
 
-**Arquivo:** `supabase/functions/import-leads-sheet/index.ts`
-
-**Mudanças principais:**
-
-1. **Pré-carregar todas as duplicatas em memória:**
-   - Buscar todos os `sheet_row_id` do funil de uma vez
-   - Buscar todos os `email` do funil de uma vez
-   - Buscar todos os `phone` do funil de uma vez
-
-2. **Usar Sets para verificação O(1):**
-   - Verificar duplicatas usando JavaScript Sets (instantâneo) ao invés de queries SQL
-
-3. **Limitar quantidade por execução:**
-   - Processar no máximo 2000 linhas por chamada
-   - Permitir parâmetro `startRow` para continuar de onde parou
-   - Retornar `hasMore: true` quando houver mais linhas
-
-4. **Exemplo do novo fluxo:**
-```text
-Fetch planilha (linhas 2-2001)
-Buscar existentes: sheet_row_ids, emails, phones (3 queries)
-Loop 2000 linhas verificando em memória
-Insert em lotes de 100 (20 queries)
-Retornar { imported: X, hasMore: true, nextRow: 2002 }
-```
-
-### 4. Atualizar Frontend
-
-**Arquivo:** `src/hooks/useSheetSync.ts`
-
-Adicionar lógica para chamadas repetidas quando `hasMore: true`, com feedback de progresso.
-
-**Arquivo:** `src/components/admin/SyncStatusPanel.tsx`
-
-Mostrar barra de progresso durante sincronizações longas.
-
-## Benefícios
-
-- Reduz de ~96.000 queries para ~25 queries
-- Completa em menos de 10 segundos (vs timeout atual)
-- Suporta planilhas de qualquer tamanho
-- Feedback visual do progresso
-
-## Sequência de Implementação
-
-1. Modificar Edge Function com otimizações
-2. Adicionar suporte a paginação
-3. Atualizar hook `useSheetSync` para chamadas em loop
-4. Atualizar UI com indicador de progresso
-5. Testar com o funil "teste dos arquetipos"
+- **Linhas afetadas:** ~202-265 em `Admin.tsx`
+- **Sem dependências adicionais** - O componente já está pronto
+- **Sem alterações no banco de dados**
