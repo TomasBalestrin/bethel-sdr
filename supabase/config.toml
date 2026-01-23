@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.sync-google-calendar]
 verify_jwt = false
+
+[functions.import-leads-sheet]
+verify_jwt = false

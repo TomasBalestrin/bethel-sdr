@@ -1,0 +1,185 @@
+import { useState } from 'react';
+import { useFunnels } from '@/hooks/useFunnels';
+import { useSyncFunnel, useSyncAllFunnels } from '@/hooks/useSheetSync';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ExternalLink,
+  Loader2,
+} from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+export function SyncStatusPanel() {
+  const { data: funnels, isLoading } = useFunnels();
+  const syncFunnel = useSyncFunnel();
+  const syncAllFunnels = useSyncAllFunnels();
+  const [syncingFunnelId, setSyncingFunnelId] = useState<string | null>(null);
+
+  const funnelsWithSheets = funnels?.filter(
+    (f) => f.google_sheet_url && f.sheet_name
+  ) || [];
+
+  const handleSyncFunnel = async (funnelId: string) => {
+    setSyncingFunnelId(funnelId);
+    try {
+      await syncFunnel.mutateAsync({ funnelId });
+    } finally {
+      setSyncingFunnelId(null);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    await syncAllFunnels.mutateAsync();
+  };
+
+  const getSyncStatus = (funnel: typeof funnelsWithSheets[0]) => {
+    if (!funnel.column_mapping || Object.keys(funnel.column_mapping).length === 0) {
+      return { status: 'not-configured', label: 'Não configurado', color: 'secondary' };
+    }
+    if (!funnel.auto_sync_enabled) {
+      return { status: 'manual', label: 'Sincronização manual', color: 'outline' };
+    }
+    return { status: 'auto', label: 'Sincronização automática', color: 'default' };
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardContent>
+          <Skeleton className="h-32 w-full" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-xl">Sincronização de Leads</CardTitle>
+            <CardDescription>
+              Gerencie a importação de leads das planilhas Google Sheets
+            </CardDescription>
+          </div>
+          <Button
+            onClick={handleSyncAll}
+            disabled={syncAllFunnels.isPending || funnelsWithSheets.length === 0}
+          >
+            {syncAllFunnels.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Sincronizar Todos
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {funnelsWithSheets.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p className="font-medium">Nenhum funil configurado</p>
+            <p className="text-sm">
+              Configure uma planilha Google Sheets em um funil para começar a importar leads automaticamente.
+            </p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Funil</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Última Sincronização</TableHead>
+                <TableHead>Planilha</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {funnelsWithSheets.map((funnel) => {
+                const syncStatus = getSyncStatus(funnel);
+                const isSyncing = syncingFunnelId === funnel.id;
+
+                return (
+                  <TableRow key={funnel.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {funnel.active ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        <span className="font-medium">{funnel.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={syncStatus.color as any}>
+                        {syncStatus.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {funnel.last_sync_at ? (
+                        <span className="text-sm text-muted-foreground">
+                          {formatDistanceToNow(new Date(funnel.last_sync_at), {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Nunca</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <a
+                        href={funnel.google_sheet_url || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        {funnel.sheet_name}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSyncFunnel(funnel.id)}
+                        disabled={isSyncing || syncStatus.status === 'not-configured'}
+                      >
+                        {isSyncing ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
