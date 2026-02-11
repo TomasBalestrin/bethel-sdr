@@ -54,7 +54,7 @@ export function LeadDetailsSheet({
             {lead.phone && (
               <div className="flex items-center gap-3 text-sm">
                 <Phone className="h-4 w-4 text-muted-foreground" />
-                <a href={`https://wa.me/${lead.phone.replace(/\D/g, '')}`} 
+                <a href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`} 
                    target="_blank" 
                    rel="noopener noreferrer"
                    className="text-primary hover:underline">
