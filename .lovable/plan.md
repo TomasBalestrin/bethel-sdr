@@ -1,70 +1,40 @@
 
-# Plano: Corrigir Importação de Leads - Normalização do Campo business_position
+# Plano: Redirecionar Clique no Telefone para WhatsApp
 
-## Diagnóstico
+## Objetivo
+Ao clicar no número de telefone de um lead em qualquer lugar do sistema, abrir o WhatsApp Web para iniciar conversa diretamente.
 
-A sincronização do Google Sheets está funcionando tecnicamente, mas **nenhum lead está sendo salvo** porque:
+## Locais a Alterar
 
-- O banco de dados tem uma constraint `leads_business_position_check` que só aceita: `'dono'` ou `'nao_dono'`
-- A planilha contém valores como "Dono", "Não Dono", "DONO", "Sou o dono", etc.
-- Todos os lotes estão falhando com o erro: `violates check constraint "leads_business_position_check"`
+### 1. `src/pages/Leads.tsx` (Tabela de Leads) - Linha ~190
+- Transformar o texto do telefone em um link clicável para WhatsApp
+- Adicionar `stopPropagation` para não abrir o painel de detalhes ao clicar no telefone
 
-## Solução
+### 2. `src/components/crm/KanbanCard.tsx` (Card do Kanban) - Linhas 86-91
+- Transformar o telefone exibido em link clicável para WhatsApp
+- Adicionar `stopPropagation` para não interferir no drag-and-drop
 
-Normalizar o valor de `business_position` antes de inserir no banco de dados, convertendo qualquer variação para os valores aceitos.
+### 3. `src/components/leader/LeadCard.tsx` (Card do Líder) - Linhas 107-117
+- Transformar o telefone dentro do Tooltip em link clicável para WhatsApp
 
-## Alterações Necessárias
+### 4. `src/components/calendar/ScheduledLeadCard.tsx` (Detalhe do Lead) - Linhas 215-219
+- Transformar o telefone na seção de detalhes em link clicável
 
-### Arquivo: `supabase/functions/import-leads-sheet/index.ts`
+### 5. `src/components/leads/LeadDetailsSheet.tsx` - Já está OK
+- Este componente já redireciona para `wa.me` ao clicar no telefone (sem o prefixo 55)
+- Corrigir para incluir o prefixo `55` no link, padronizando com o resto do sistema
 
-**1. Criar função de normalização:**
+## Detalhes Técnicos
 
+Padrão de link usado em todos os locais:
 ```typescript
-function normalizeBusinessPosition(value: string | undefined): string | null {
-  if (!value) return null;
-  const lower = value.toLowerCase().trim();
-  
-  // Variações de "dono"
-  if (lower.includes('dono') && !lower.includes('não') && !lower.includes('nao')) {
-    return 'dono';
-  }
-  
-  // Variações de "não dono"
-  if (lower.includes('não dono') || lower.includes('nao dono') || 
-      lower === 'não' || lower === 'nao' || lower === 'n') {
-    return 'nao_dono';
-  }
-  
-  // Respostas afirmativas = dono
-  if (['sim', 'yes', 's', 'true', '1'].includes(lower)) {
-    return 'dono';
-  }
-  
-  // Se não identificar, retorna null (evita o erro)
-  return null;
-}
+const cleanPhone = phone.replace(/\D/g, '');
+window.open(`https://wa.me/55${cleanPhone}`, '_blank');
 ```
 
-**2. Usar a função no mapeamento (linha ~399):**
+Cada link terá:
+- Ícone do WhatsApp (MessageCircle) em verde ao lado do número
+- `cursor-pointer` e `hover:underline` para indicar que é clicável
+- `e.stopPropagation()` para não disparar o onClick do card pai
 
-Alterar de:
-```typescript
-business_position: getColumnValue(mapping.business_position) || null,
-```
-
-Para:
-```typescript
-business_position: normalizeBusinessPosition(getColumnValue(mapping.business_position)),
-```
-
-## Resultado Esperado
-
-- Valores como "Dono", "DONO", "Sou o dono" → `'dono'`
-- Valores como "Não Dono", "NAO DONO", "Não" → `'nao_dono'`
-- Valores não identificáveis → `null` (aceito pelo banco)
-
-## Impacto
-
-- Os ~48.000 leads da planilha serão importados corretamente
-- Leads aparecerão na página **Leads** e no **CRM**
-- Sem necessidade de alterar o banco de dados
+## Sem alterações no banco de dados
