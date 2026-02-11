@@ -1,7 +1,7 @@
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { 
-  Phone, 
+  MessageCircle,
   Mail, 
   Instagram, 
   Building2,
@@ -107,10 +107,17 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
           {lead.phone && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="flex items-center gap-1 truncate">
-                  <Phone className="h-3 w-3 shrink-0" />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const cleanPhone = lead.phone!.replace(/\D/g, '');
+                    window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+                  }}
+                  className="flex items-center gap-1 truncate text-green-600 hover:underline cursor-pointer"
+                >
+                  <MessageCircle className="h-3 w-3 shrink-0" />
                   <span className="truncate">{lead.phone}</span>
-                </div>
+                </button>
               </TooltipTrigger>
               <TooltipContent>{lead.phone}</TooltipContent>
             </Tooltip>

@@ -213,10 +213,17 @@ export function ScheduledLeadCard({ lead, appointment, compact = false, classNam
           </h4>
           <div className="grid grid-cols-2 gap-2 text-sm">
             {lead.phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const cleanPhone = lead.phone!.replace(/\D/g, '');
+                  window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+                }}
+                className="flex items-center gap-2 text-green-600 hover:underline cursor-pointer"
+              >
+                <MessageCircle className="h-4 w-4" />
                 <span>{lead.phone}</span>
-              </div>
+              </button>
             )}
             {lead.email && (
               <div className="flex items-center gap-2 truncate">

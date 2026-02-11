@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, Users, Upload } from 'lucide-react';
+import { Search, Filter, Users, Upload, MessageCircle } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -187,7 +187,21 @@ export default function Leads() {
                     onClick={() => handleRowClick(lead as Lead)}
                   >
                     <TableCell className="font-medium">{lead.full_name}</TableCell>
-                    <TableCell>{lead.phone || '-'}</TableCell>
+                    <TableCell>
+                      {lead.phone ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const cleanPhone = lead.phone!.replace(/\D/g, '');
+                            window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+                          }}
+                          className="flex items-center gap-1.5 text-green-600 hover:underline cursor-pointer"
+                        >
+                          <MessageCircle className="h-3.5 w-3.5" />
+                          {lead.phone}
+                        </button>
+                      ) : '-'}
+                    </TableCell>
                     <TableCell>
                       {lead.classification && <ClassificationBadge classification={lead.classification} />}
                     </TableCell>

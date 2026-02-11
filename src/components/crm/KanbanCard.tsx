@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Phone, Clock, Briefcase, GripVertical } from 'lucide-react';
+import { Phone, Clock, Briefcase, GripVertical, MessageCircle } from 'lucide-react';
 import { ClassificationBadge } from '@/components/shared/StatusBadge';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -84,10 +84,17 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
         {/* Details */}
         <div className="flex items-center gap-3">
           {lead.phone && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Phone className="h-3 w-3" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const cleanPhone = lead.phone!.replace(/\D/g, '');
+                window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+              }}
+              className="flex items-center gap-1.5 text-xs text-green-600 hover:underline cursor-pointer"
+            >
+              <MessageCircle className="h-3 w-3" />
               <span className="font-medium">{lead.phone}</span>
-            </div>
+            </button>
           )}
         </div>
 
