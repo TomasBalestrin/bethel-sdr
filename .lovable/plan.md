@@ -1,40 +1,65 @@
 
-# Plano: Redirecionar Clique no Telefone para WhatsApp
 
-## Objetivo
-Ao clicar no número de telefone de um lead em qualquer lugar do sistema, abrir o WhatsApp Web para iniciar conversa diretamente.
+# Plano: Implementar Qualificação Automática de Leads
 
-## Locais a Alterar
+## Problema Atual
 
-### 1. `src/pages/Leads.tsx` (Tabela de Leads) - Linha ~190
-- Transformar o texto do telefone em um link clicável para WhatsApp
-- Adicionar `stopPropagation` para não abrir o painel de detalhes ao clicar no telefone
+- Linha 433 de `import-leads-sheet/index.ts`: todo lead importado recebe `classification: 'bronze'` fixo
+- A tabela `qualification_rules` está vazia (nenhuma regra cadastrada)
+- Mesmo que houvesse regras, nao existe codigo que as aplique -- a UI existe, mas a logica de execucao nao
 
-### 2. `src/components/crm/KanbanCard.tsx` (Card do Kanban) - Linhas 86-91
-- Transformar o telefone exibido em link clicável para WhatsApp
-- Adicionar `stopPropagation` para não interferir no drag-and-drop
+## Solucao em 3 Partes
 
-### 3. `src/components/leader/LeadCard.tsx` (Card do Líder) - Linhas 107-117
-- Transformar o telefone dentro do Tooltip em link clicável para WhatsApp
+### Parte 1: Criar funcao no banco de dados para aplicar regras
 
-### 4. `src/components/calendar/ScheduledLeadCard.tsx` (Detalhe do Lead) - Linhas 215-219
-- Transformar o telefone na seção de detalhes em link clicável
+Criar uma funcao PostgreSQL `apply_qualification_rules` que:
+- Recebe um lead_id (ou roda para todos os leads sem qualificacao)
+- Busca as regras ativas ordenadas por prioridade
+- Avalia as condicoes de cada regra contra os dados do lead
+- Atualiza `classification` e `qualification` do lead com a primeira regra que corresponder
+- Se nenhuma regra corresponder, mantem `bronze` como padrao
 
-### 5. `src/components/leads/LeadDetailsSheet.tsx` - Já está OK
-- Este componente já redireciona para `wa.me` ao clicar no telefone (sem o prefixo 55)
-- Corrigir para incluir o prefixo `55` no link, padronizando com o resto do sistema
+### Parte 2: Criar trigger automatico
 
-## Detalhes Técnicos
+Criar um trigger `after insert` na tabela `leads` que executa a funcao de qualificacao automaticamente para cada lead inserido. Assim, qualquer lead (importado via planilha, CSV ou criado manualmente) sera qualificado.
 
-Padrão de link usado em todos os locais:
-```typescript
-const cleanPhone = phone.replace(/\D/g, '');
-window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+### Parte 3: Alterar a Edge Function de importacao
+
+Em `supabase/functions/import-leads-sheet/index.ts`:
+- Mudar `classification: 'bronze'` para `classification: null` (linha 433)
+- A qualificacao sera feita automaticamente pelo trigger apos a insercao
+
+## Detalhes Tecnicos da Funcao de Qualificacao
+
+A funcao PostgreSQL avaliara as condicoes das regras:
+
+```text
+Para cada regra (ordenada por prioridade):
+  Para cada condicao na regra:
+    - equals: campo = valor
+    - not_equals: campo != valor
+    - greater_than: campo::numeric > valor::numeric
+    - less_than: campo::numeric < valor::numeric
+    - contains: campo ILIKE '%valor%'
+    - not_contains: campo NOT ILIKE '%valor%'
+  Se todas as condicoes (AND) ou alguma (OR) corresponder:
+    - Atualizar classification e qualification do lead
+    - Parar (primeira regra vence)
+  Se nenhuma regra corresponder:
+    - Classificar como 'bronze' (padrao)
 ```
 
-Cada link terá:
-- Ícone do WhatsApp (MessageCircle) em verde ao lado do número
-- `cursor-pointer` e `hover:underline` para indicar que é clicável
-- `e.stopPropagation()` para não disparar o onClick do card pai
+Campos avaliados: `revenue`, `niche`, `state`, `business_position`, `has_partner`, `main_pain`, `difficulty`, e campos customizados.
 
-## Sem alterações no banco de dados
+## Impacto
+
+- Leads importados serao classificados automaticamente com base nas regras cadastradas
+- O admin pode criar regras na aba "Qualificacao" do painel Admin (UI ja existe)
+- Leads existentes podem ser reclassificados rodando a funcao manualmente
+- Se nenhuma regra estiver cadastrada, o comportamento padrao continua sendo `bronze`
+
+## Arquivos Alterados
+
+1. **Nova migracao SQL**: Criar funcao `apply_qualification_rules` + trigger
+2. **`supabase/functions/import-leads-sheet/index.ts`**: Mudar classification padrao de `'bronze'` para `null`
+
