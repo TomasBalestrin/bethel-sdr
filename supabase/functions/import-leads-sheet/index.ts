@@ -430,7 +430,7 @@ function mapRowToLead(
     sheet_row_id: `${funnelId}_row_${rowIndex}`,
     sheet_source_url: sheetUrl,
     status: 'novo',
-    classification: 'bronze',
+    classification: null,
     imported_at: new Date().toISOString(),
   };
 }

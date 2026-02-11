@@ -792,6 +792,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_qualification_rules: {
+        Args: { p_lead_id: string }
+        Returns: undefined
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
