@@ -178,8 +178,11 @@ export function LeadDetailsSheet({
             )}
           </div>
 
-          <div className="pt-4 text-xs text-muted-foreground">
-            Criado em {format(new Date(lead.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+          <div className="pt-4 space-y-1 text-xs text-muted-foreground">
+            {lead.form_filled_at && (
+              <p>Preenchimento do formulário: {format(new Date(lead.form_filled_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
+            )}
+            <p>Criado em {format(new Date(lead.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</p>
           </div>
         </div>
       </SheetContent>

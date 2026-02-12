@@ -478,6 +478,11 @@ function mapRowToLead(
     status: 'novo',
     classification: null,
     imported_at: new Date().toISOString(),
+    form_filled_at: (() => {
+      const dateVal = getColumnValue(mapping.date_column);
+      const parsed = dateVal ? parseLeadDate(dateVal) : null;
+      return parsed ? parsed.toISOString() : null;
+    })(),
   };
 }
 
