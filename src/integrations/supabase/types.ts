@@ -311,6 +311,7 @@ export type Database = {
           created_at: string
           google_sheet_url: string | null
           id: string
+          import_from_date: string | null
           last_sync_at: string | null
           name: string
           sheet_name: string | null
@@ -324,6 +325,7 @@ export type Database = {
           created_at?: string
           google_sheet_url?: string | null
           id?: string
+          import_from_date?: string | null
           last_sync_at?: string | null
           name: string
           sheet_name?: string | null
@@ -337,6 +339,7 @@ export type Database = {
           created_at?: string
           google_sheet_url?: string | null
           id?: string
+          import_from_date?: string | null
           last_sync_at?: string | null
           name?: string
           sheet_name?: string | null

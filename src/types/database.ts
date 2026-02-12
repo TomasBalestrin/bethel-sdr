@@ -36,6 +36,7 @@ export interface Funnel {
   auto_sync_enabled: boolean;
   last_sync_at: string | null;
   sync_interval_minutes: number;
+  import_from_date: string | null;
 }
 
 export interface Lead {

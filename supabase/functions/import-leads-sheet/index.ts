@@ -22,6 +22,7 @@ interface ColumnMapping {
   main_pain?: string;
   has_partner?: string;
   knows_specialist_since?: string;
+  date_column?: string;
 }
 
 interface FunnelData {
@@ -32,6 +33,7 @@ interface FunnelData {
   column_mapping: ColumnMapping | null;
   auto_sync_enabled: boolean;
   last_sync_at: string | null;
+  import_from_date: string | null;
 }
 
 interface ImportRequest {
@@ -371,6 +373,50 @@ function parseBoolean(value: string | undefined): boolean | null {
   return null;
 }
 
+// Parse date from various formats
+function parseLeadDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  // Google Sheets serial number (days since 1899-12-30)
+  const serial = Number(trimmed);
+  if (!isNaN(serial) && serial > 1000 && serial < 100000) {
+    const epoch = new Date(1899, 11, 30);
+    epoch.setDate(epoch.getDate() + serial);
+    return epoch;
+  }
+
+  // DD/MM/YYYY
+  const brMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (brMatch) {
+    const d = new Date(Number(brMatch[3]), Number(brMatch[2]) - 1, Number(brMatch[1]));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // YYYY-MM-DD
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const d = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // MM/DD/YYYY
+  const usMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (usMatch) {
+    const month = Number(usMatch[1]);
+    if (month > 12) return null; // already handled as DD/MM above
+    const d = new Date(Number(usMatch[3]), month - 1, Number(usMatch[2]));
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Fallback: native Date parse
+  const fallback = new Date(trimmed);
+  if (!isNaN(fallback.getTime())) return fallback;
+
+  return null;
+}
+
 // Normalize business_position to match database constraint ('dono' or 'nao_dono')
 function normalizeBusinessPosition(value: string | undefined): string | null {
   if (!value) return null;
@@ -651,6 +697,11 @@ Deno.serve(async (req) => {
       let skipped = 0;
       const leadsToInsert: Record<string, unknown>[] = [];
 
+      // Parse import_from_date for date filtering
+      const importFromDate = funnel.import_from_date ? new Date(funnel.import_from_date + 'T00:00:00') : null;
+      const dateColumnName = funnel.column_mapping.date_column;
+      let dateFiltered = 0;
+
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
         const absoluteRowIndex = startRow + i; // Actual row number in sheet
@@ -660,6 +711,19 @@ Deno.serve(async (req) => {
         if (sheetRowIds.has(sheetRowId)) {
           skipped++;
           continue;
+        }
+
+        // Date filter: skip rows older than import_from_date
+        if (importFromDate && dateColumnName) {
+          const dateColIndex = headers.findIndex(h => h.toLowerCase().trim() === dateColumnName.toLowerCase().trim());
+          if (dateColIndex >= 0) {
+            const rowDate = parseLeadDate(row[dateColIndex]);
+            if (rowDate && rowDate < importFromDate) {
+              dateFiltered++;
+              skipped++;
+              continue;
+            }
+          }
         }
 
         const lead = mapRowToLead(
@@ -688,6 +752,8 @@ Deno.serve(async (req) => {
           sheetRowIds.add(sheetRowId);
         }
       }
+
+      console.log(`Date filtered: ${dateFiltered} rows skipped by date filter`);
 
       // Insert leads in batches
       if (leadsToInsert.length > 0) {
@@ -782,6 +848,10 @@ Deno.serve(async (req) => {
 
         const leadsToInsert: Record<string, unknown>[] = [];
 
+        // Parse import_from_date for date filtering
+        const importFromDate = funnel.import_from_date ? new Date(funnel.import_from_date + 'T00:00:00') : null;
+        const dateColumnName = funnel.column_mapping.date_column;
+
         for (let i = 0; i < dataRows.length; i++) {
           const row = dataRows[i];
           const rowIndex = i + 2;
@@ -790,6 +860,18 @@ Deno.serve(async (req) => {
           if (sheetRowIds.has(sheetRowId)) {
             funnelResult.skipped++;
             continue;
+          }
+
+          // Date filter
+          if (importFromDate && dateColumnName) {
+            const dateColIndex = headers.findIndex(h => h.toLowerCase().trim() === dateColumnName.toLowerCase().trim());
+            if (dateColIndex >= 0) {
+              const rowDate = parseLeadDate(row[dateColIndex]);
+              if (rowDate && rowDate < importFromDate) {
+                funnelResult.skipped++;
+                continue;
+              }
+            }
           }
 
           const lead = mapRowToLead(
