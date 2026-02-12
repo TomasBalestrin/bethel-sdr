@@ -1,65 +1,70 @@
 
 
-# Plano: Implementar Qualificação Automática de Leads
+# Plano: Filtro de Data na Importacao de Leads
 
-## Problema Atual
+## Problema
 
-- Linha 433 de `import-leads-sheet/index.ts`: todo lead importado recebe `classification: 'bronze'` fixo
-- A tabela `qualification_rules` está vazia (nenhuma regra cadastrada)
-- Mesmo que houvesse regras, nao existe codigo que as aplique -- a UI existe, mas a logica de execucao nao
+As planilhas do Google Sheets contam **22.000+ linhas** com leads historicos. Importar todos gera volume desnecessario. Ambas as planilhas possuem uma coluna de data na primeira posicao:
+- **"teste dos arquetipos"**: coluna "Date"
+- **"50 Scripts"**: coluna "Data"
 
-## Solucao em 3 Partes
+Porem, essa coluna nao esta mapeada e nao existe filtro de data no processo de importacao.
 
-### Parte 1: Criar funcao no banco de dados para aplicar regras
+## Solucao
 
-Criar uma funcao PostgreSQL `apply_qualification_rules` que:
-- Recebe um lead_id (ou roda para todos os leads sem qualificacao)
-- Busca as regras ativas ordenadas por prioridade
-- Avalia as condicoes de cada regra contra os dados do lead
-- Atualiza `classification` e `qualification` do lead com a primeira regra que corresponder
-- Se nenhuma regra corresponder, mantem `bronze` como padrao
+Adicionar um campo `date_column` ao mapeamento de colunas e um campo `import_from_date` na tabela de funis, para filtrar leads por data durante a importacao.
 
-### Parte 2: Criar trigger automatico
+### Parte 1: Alterar a tabela `funnels`
 
-Criar um trigger `after insert` na tabela `leads` que executa a funcao de qualificacao automaticamente para cada lead inserido. Assim, qualquer lead (importado via planilha, CSV ou criado manualmente) sera qualificado.
+Adicionar coluna `import_from_date` (tipo DATE) na tabela `funnels`:
+- Valor padrao: `2026-01-01` (inicio deste ano)
+- Permite ao admin definir a data minima de importacao por funil
 
-### Parte 3: Alterar a Edge Function de importacao
+### Parte 2: Adicionar `date_column` ao mapeamento
 
-Em `supabase/functions/import-leads-sheet/index.ts`:
-- Mudar `classification: 'bronze'` para `classification: null` (linha 433)
-- A qualificacao sera feita automaticamente pelo trigger apos a insercao
+Adicionar o campo `date_column` na interface `ColumnMapping` da Edge Function. Esse campo indica qual coluna da planilha contem a data do lead.
 
-## Detalhes Tecnicos da Funcao de Qualificacao
+### Parte 3: Filtrar linhas na Edge Function
 
-A funcao PostgreSQL avaliara as condicoes das regras:
+Na funcao `import-leads-sheet/index.ts`, no loop de processamento de linhas (linha ~654):
+- Ler o valor da coluna de data mapeada
+- Fazer parsing da data (suportando formatos comuns: DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY)
+- Comparar com `import_from_date` do funil
+- Pular (skip) linhas com data anterior ao filtro
+
+### Parte 4: Atualizar a UI do Funil (FunnelFormModal)
+
+No formulario de configuracao de funil:
+- Adicionar campo "Coluna de Data" no mapeamento de colunas
+- Adicionar campo "Importar a partir de" com date picker (padrao: 01/01/2026)
+
+## Detalhes Tecnicos
 
 ```text
-Para cada regra (ordenada por prioridade):
-  Para cada condicao na regra:
-    - equals: campo = valor
-    - not_equals: campo != valor
-    - greater_than: campo::numeric > valor::numeric
-    - less_than: campo::numeric < valor::numeric
-    - contains: campo ILIKE '%valor%'
-    - not_contains: campo NOT ILIKE '%valor%'
-  Se todas as condicoes (AND) ou alguma (OR) corresponder:
-    - Atualizar classification e qualification do lead
-    - Parar (primeira regra vence)
-  Se nenhuma regra corresponder:
-    - Classificar como 'bronze' (padrao)
+Fluxo de importacao atualizado:
+
+Para cada linha da planilha:
+  1. Verificar duplicata (sheet_row_id, email, phone) -> skip
+  2. [NOVO] Ler coluna de data mapeada
+  3. [NOVO] Se data < import_from_date -> skip (contabilizar como filtrado)
+  4. Mapear campos e inserir lead
 ```
 
-Campos avaliados: `revenue`, `niche`, `state`, `business_position`, `has_partner`, `main_pain`, `difficulty`, e campos customizados.
-
-## Impacto
-
-- Leads importados serao classificados automaticamente com base nas regras cadastradas
-- O admin pode criar regras na aba "Qualificacao" do painel Admin (UI ja existe)
-- Leads existentes podem ser reclassificados rodando a funcao manualmente
-- Se nenhuma regra estiver cadastrada, o comportamento padrao continua sendo `bronze`
+Formatos de data suportados no parsing:
+- `DD/MM/YYYY` (formato BR, mais comum)
+- `YYYY-MM-DD` (formato ISO)
+- `MM/DD/YYYY` (formato US)
+- Timestamps do Google Sheets (numero serial)
 
 ## Arquivos Alterados
 
-1. **Nova migracao SQL**: Criar funcao `apply_qualification_rules` + trigger
-2. **`supabase/functions/import-leads-sheet/index.ts`**: Mudar classification padrao de `'bronze'` para `null`
+1. **Nova migracao SQL**: Adicionar coluna `import_from_date` na tabela `funnels`
+2. **`supabase/functions/import-leads-sheet/index.ts`**: Adicionar `date_column` ao ColumnMapping, logica de filtro por data
+3. **`src/components/admin/FunnelFormModal.tsx`**: Adicionar campos de coluna de data e data minima
+4. **`src/components/admin/SheetColumnMapper.tsx`**: Adicionar mapeamento da coluna de data
 
+## Resultado Esperado
+
+- Ao sincronizar o funil "50 Scripts" (22.874 linhas), somente os leads de 2026 serao importados
+- Reducao significativa no volume de dados (estimativa: ~2.000-5.000 leads relevantes vs 22.000+ total)
+- O admin pode ajustar a data de corte por funil conforme necessidade
