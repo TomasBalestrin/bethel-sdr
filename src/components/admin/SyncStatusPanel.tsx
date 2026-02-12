@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useFunnels } from '@/hooks/useFunnels';
-import { useSyncFunnelWithProgress, useSyncAllFunnels } from '@/hooks/useSheetSync';
+import { useSyncFunnelWithProgress, useSyncAllFunnels, useUpdateLeadDates } from '@/hooks/useSheetSync';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import {
   Clock,
   ExternalLink,
   Loader2,
+  CalendarClock,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -29,7 +30,9 @@ export function SyncStatusPanel() {
   const { data: funnels, isLoading } = useFunnels();
   const { syncFunnel, progress } = useSyncFunnelWithProgress();
   const syncAllFunnels = useSyncAllFunnels();
+  const { updateDates, progress: updateProgress } = useUpdateLeadDates();
   const [syncingFunnelId, setSyncingFunnelId] = useState<string | null>(null);
+  const [updatingFunnelId, setUpdatingFunnelId] = useState<string | null>(null);
 
   const funnelsWithSheets = funnels?.filter(
     (f) => f.google_sheet_url && f.sheet_name
@@ -46,6 +49,15 @@ export function SyncStatusPanel() {
 
   const handleSyncAll = async () => {
     await syncAllFunnels.mutateAsync();
+  };
+
+  const handleUpdateDates = async (funnelId: string) => {
+    setUpdatingFunnelId(funnelId);
+    try {
+      await updateDates(funnelId);
+    } finally {
+      setUpdatingFunnelId(null);
+    }
   };
 
   const getSyncStatus = (funnel: typeof funnelsWithSheets[0]) => {
@@ -124,6 +136,25 @@ export function SyncStatusPanel() {
           </div>
         )}
 
+        {/* Update dates progress indicator */}
+        {updateProgress.isActive && (
+          <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Atualizando datas dos formulários...</span>
+              <span className="text-muted-foreground">
+                {updateProgress.processedRows.toLocaleString()} / {updateProgress.totalRows.toLocaleString()} linhas
+              </span>
+            </div>
+            <Progress value={updateProgress.totalRows > 0 ? Math.round((updateProgress.processedRows / updateProgress.totalRows) * 100) : 0} className="h-2" />
+            <div className="flex gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <CalendarClock className="h-3 w-3 text-primary" />
+                {updateProgress.updated} datas atualizadas
+              </span>
+            </div>
+          </div>
+        )}
+
         {funnelsWithSheets.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -147,6 +178,8 @@ export function SyncStatusPanel() {
               {funnelsWithSheets.map((funnel) => {
                 const syncStatus = getSyncStatus(funnel);
                 const isSyncing = syncingFunnelId === funnel.id || (progress.isActive && progress.funnelId === funnel.id);
+                const isUpdating = updatingFunnelId === funnel.id || (updateProgress.isActive && updateProgress.funnelId === funnel.id);
+                const anyActive = progress.isActive || updateProgress.isActive;
 
                 return (
                   <TableRow key={funnel.id}>
@@ -189,18 +222,34 @@ export function SyncStatusPanel() {
                       </a>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSyncFunnel(funnel.id)}
-                        disabled={isSyncing || syncStatus.status === 'not-configured' || progress.isActive}
-                      >
-                        {isSyncing ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Atualizar datas dos formulários"
+                          onClick={() => handleUpdateDates(funnel.id)}
+                          disabled={isUpdating || syncStatus.status === 'not-configured' || anyActive || !funnel.column_mapping?.date_column}
+                        >
+                          {isUpdating ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CalendarClock className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          title="Sincronizar leads"
+                          onClick={() => handleSyncFunnel(funnel.id)}
+                          disabled={isSyncing || syncStatus.status === 'not-configured' || anyActive}
+                        >
+                          {isSyncing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

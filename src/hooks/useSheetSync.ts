@@ -104,7 +104,7 @@ export function useSyncFunnelWithProgress() {
   });
 
   const syncFunnel = useCallback(async (funnelId: string): Promise<SyncResult> => {
-    let startRow = 2; // Start from row 2 (after header)
+    let startRow = 2;
     let totalImported = 0;
     let totalSkipped = 0;
     let hasMore = true;
@@ -122,24 +122,12 @@ export function useSyncFunnelWithProgress() {
     try {
       while (hasMore) {
         const { data, error } = await supabase.functions.invoke('import-leads-sheet', {
-          body: {
-            funnelId,
-            action: 'import',
-            startRow,
-          },
+          body: { funnelId, action: 'import', startRow },
         });
 
-        if (error) {
-          lastError = error.message;
-          break;
-        }
-
+        if (error) { lastError = error.message; break; }
         const result = data as SyncResult;
-
-        if (!result.success) {
-          lastError = result.error;
-          break;
-        }
+        if (!result.success) { lastError = result.error; break; }
 
         totalImported += result.totalImported || 0;
         totalSkipped += result.totalSkipped || 0;
@@ -153,12 +141,9 @@ export function useSyncFunnelWithProgress() {
           skipped: totalSkipped,
         }));
 
-        if (hasMore && result.nextRow) {
-          startRow = result.nextRow;
-        }
+        if (hasMore && result.nextRow) startRow = result.nextRow;
       }
 
-      // Invalidate queries after sync
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['funnels'] });
 
@@ -175,11 +160,7 @@ export function useSyncFunnelWithProgress() {
         toast.info('Sincronização concluída. Nenhum lead para importar.');
       }
 
-      return {
-        success: true,
-        totalImported,
-        totalSkipped,
-      };
+      return { success: true, totalImported, totalSkipped };
     } finally {
       setProgress(prev => ({ ...prev, isActive: false }));
     }
@@ -197,6 +178,66 @@ export function useSyncFunnelWithProgress() {
   }, []);
 
   return { syncFunnel, progress, reset };
+}
+
+// Hook for updating form_filled_at on existing leads
+export function useUpdateLeadDates() {
+  const queryClient = useQueryClient();
+  const [progress, setProgress] = useState<SyncProgress & { updated: number }>({
+    isActive: false,
+    funnelId: null,
+    totalRows: 0,
+    processedRows: 0,
+    imported: 0,
+    skipped: 0,
+    updated: 0,
+  });
+
+  const updateDates = useCallback(async (funnelId: string) => {
+    let startRow = 2;
+    let totalUpdated = 0;
+    let hasMore = true;
+
+    setProgress({
+      isActive: true, funnelId, totalRows: 0, processedRows: 0,
+      imported: 0, skipped: 0, updated: 0,
+    });
+
+    try {
+      while (hasMore) {
+        const { data, error } = await supabase.functions.invoke('import-leads-sheet', {
+          body: { funnelId, action: 'update-dates', startRow },
+        });
+
+        if (error) { toast.error(`Erro: ${error.message}`); break; }
+        if (!data.success) { toast.error(`Erro: ${data.error}`); break; }
+
+        totalUpdated += data.totalUpdated || 0;
+        hasMore = data.hasMore || false;
+
+        setProgress(prev => ({
+          ...prev,
+          totalRows: data.totalRows || prev.totalRows,
+          processedRows: data.processedRows || prev.processedRows,
+          updated: totalUpdated,
+        }));
+
+        if (hasMore && data.nextRow) startRow = data.nextRow;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+
+      if (totalUpdated > 0) {
+        toast.success(`${totalUpdated} leads atualizados com data do formulário!`);
+      } else {
+        toast.info('Nenhum lead precisava de atualização de data.');
+      }
+    } finally {
+      setProgress(prev => ({ ...prev, isActive: false }));
+    }
+  }, [queryClient]);
+
+  return { updateDates, progress };
 }
 
 // Simpler hook for basic sync without progress (backward compatible)
