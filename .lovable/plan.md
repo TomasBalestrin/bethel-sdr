@@ -1,62 +1,72 @@
 
-# Plano: Adicionar campo "Data de Preenchimento" ao Lead
+
+# Plano: Modo de Atualização para Preencher Data de Formulário em Leads Existentes
 
 ## Problema
 
-Atualmente o lead possui apenas `created_at` (data de criacao no sistema) e `imported_at` (data da importacao). Falta o dado mais importante para o negocio: **quando a pessoa preencheu o formulario**, que e a data registrada na planilha do Google Sheets.
+Os 3.330 leads já importados no sistema não possuem o campo `form_filled_at` preenchido, pois foram importados antes dessa funcionalidade existir. A importação atual pula leads duplicados, então rodar uma nova sincronização não resolve.
 
-## Solucao
+## Solução
 
-Adicionar um campo `form_filled_at` (TIMESTAMPTZ) na tabela `leads`, preenche-lo automaticamente durante a importacao usando o valor da coluna de data mapeada, e exibi-lo na interface.
+Adicionar um modo "update" na Edge Function de importação que, em vez de pular leads já existentes, atualiza o campo `form_filled_at` com a data da planilha.
 
-### Parte 1: Migracao do banco de dados
+### Parte 1: Edge Function - Novo modo "update"
 
-Adicionar coluna `form_filled_at` (TIMESTAMP WITH TIME ZONE, nullable) na tabela `leads`.
-
-### Parte 2: Edge Function (`import-leads-sheet`)
-
-Na funcao `mapRowToLead`, apos ja ter o mapeamento de `date_column`:
-- Ler o valor da coluna de data da planilha
-- Usar a funcao `parseLeadDate` ja existente para converter o valor
-- Salvar o resultado em `form_filled_at` no objeto do lead
-
-Isso reutiliza toda a logica de parsing de datas (DD/MM/YYYY, ISO, serial do Google) que ja foi implementada.
-
-### Parte 3: Atualizar tipos TypeScript
-
-Adicionar `form_filled_at` ao tipo `Lead` em `src/types/database.ts`. O arquivo `src/integrations/supabase/types.ts` sera atualizado automaticamente apos a migracao.
-
-### Parte 4: Exibir na interface
-
-- **Tabela de Leads** (`src/pages/Leads.tsx`): Adicionar coluna "Data Formulario" mostrando a data formatada
-- **Detalhes do Lead** (`src/components/leads/LeadDetailsSheet.tsx`): Mostrar "Data de Preenchimento" na secao de informacoes
-
-## Detalhes Tecnicos
-
-Alteracao principal na Edge Function (dentro de `mapRowToLead`):
+Na função `import-leads-sheet/index.ts`, adicionar suporte a um parâmetro `action: 'update-dates'`:
 
 ```text
-// Apos o mapeamento existente, adicionar:
-const dateColumnName = mapping.date_column;
-const dateValue = getColumnValue(dateColumnName);
-const parsedDate = dateValue ? parseLeadDate(dateValue) : null;
+Fluxo do modo update-dates:
 
-return {
-  ...campos_existentes,
-  form_filled_at: parsedDate ? parsedDate.toISOString() : null,
-};
+Para cada linha da planilha:
+  1. Identificar o lead existente pelo sheet_row_id
+  2. Se encontrado E form_filled_at está vazio:
+     - Ler a coluna de data mapeada
+     - Fazer parsing da data
+     - UPDATE no lead com o form_filled_at
+     - Contabilizar como "atualizado"
+  3. Se não encontrado -> pular
 ```
+
+- Reutiliza a mesma lógica de paginação (2.000 linhas por batch)
+- Reutiliza a função `parseLeadDate` já existente
+- Não altera nenhum outro campo do lead, apenas `form_filled_at`
+
+### Parte 2: Frontend - Botão de atualização
+
+No painel de sincronização do Admin (`SyncStatusPanel.tsx` ou na página de funis):
+- Adicionar um botão "Atualizar Datas" que dispara o modo `update-dates`
+- Mostrar progresso da atualização (similar ao sync normal)
+- Após concluído, invalidar cache dos leads
+
+### Parte 3: Hook para atualização
+
+Criar a lógica no hook `useSheetSync.ts` para chamar a Edge Function com `action: 'update-dates'`, reutilizando a mesma estrutura de progresso.
+
+## Detalhes Técnicos
+
+**Nova action na Edge Function:**
+
+```text
+// Recebe: { funnelId, action: 'update-dates', startRow }
+// Para cada linha do batch:
+//   1. Montar sheet_row_id = funnelId_row_N
+//   2. Buscar lead existente com esse sheet_row_id
+//   3. Ler coluna de data da planilha + parseLeadDate
+//   4. UPDATE leads SET form_filled_at = parsedDate WHERE sheet_row_id = sheetRowId AND form_filled_at IS NULL
+// Retorna: { success, totalUpdated, hasMore, nextRow }
+```
+
+**Otimização:** Em vez de fazer um UPDATE por lead, acumular os updates em um batch e executar com upsert ou múltiplos updates agrupados.
 
 ## Arquivos Alterados
 
-1. **Nova migracao SQL** - Adicionar coluna `form_filled_at` na tabela `leads`
-2. **`supabase/functions/import-leads-sheet/index.ts`** - Preencher `form_filled_at` no `mapRowToLead`
-3. **`src/types/database.ts`** - Adicionar campo ao tipo `Lead`
-4. **`src/pages/Leads.tsx`** - Adicionar coluna na tabela
-5. **`src/components/leads/LeadDetailsSheet.tsx`** - Exibir data nos detalhes
+1. **`supabase/functions/import-leads-sheet/index.ts`** - Adicionar handler para `action: 'update-dates'`
+2. **`src/hooks/useSheetSync.ts`** - Adicionar hook/função para disparar atualização
+3. **`src/components/admin/SyncStatusPanel.tsx`** - Adicionar botão "Atualizar Datas dos Formulários"
 
 ## Resultado Esperado
 
-- Leads importados terao a data original do formulario preservada
-- A interface mostrara tanto "Data Formulario" (quando preencheu) quanto "Criado em" (quando entrou no sistema)
-- Leads ja existentes terao `form_filled_at = null` (podem ser reimportados futuramente se necessario)
+- Ao clicar em "Atualizar Datas", o sistema percorre a planilha e preenche `form_filled_at` nos leads existentes
+- Apenas leads com `form_filled_at = NULL` são atualizados (não sobrescreve dados já preenchidos)
+- O processo usa a mesma paginação segura de 2.000 linhas por batch
+- Após a atualização, a coluna "Data Formulário" na tabela de leads mostrará as datas corretas
