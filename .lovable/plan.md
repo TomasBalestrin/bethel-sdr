@@ -1,70 +1,62 @@
 
-
-# Plano: Filtro de Data na Importacao de Leads
+# Plano: Adicionar campo "Data de Preenchimento" ao Lead
 
 ## Problema
 
-As planilhas do Google Sheets contam **22.000+ linhas** com leads historicos. Importar todos gera volume desnecessario. Ambas as planilhas possuem uma coluna de data na primeira posicao:
-- **"teste dos arquetipos"**: coluna "Date"
-- **"50 Scripts"**: coluna "Data"
-
-Porem, essa coluna nao esta mapeada e nao existe filtro de data no processo de importacao.
+Atualmente o lead possui apenas `created_at` (data de criacao no sistema) e `imported_at` (data da importacao). Falta o dado mais importante para o negocio: **quando a pessoa preencheu o formulario**, que e a data registrada na planilha do Google Sheets.
 
 ## Solucao
 
-Adicionar um campo `date_column` ao mapeamento de colunas e um campo `import_from_date` na tabela de funis, para filtrar leads por data durante a importacao.
+Adicionar um campo `form_filled_at` (TIMESTAMPTZ) na tabela `leads`, preenche-lo automaticamente durante a importacao usando o valor da coluna de data mapeada, e exibi-lo na interface.
 
-### Parte 1: Alterar a tabela `funnels`
+### Parte 1: Migracao do banco de dados
 
-Adicionar coluna `import_from_date` (tipo DATE) na tabela `funnels`:
-- Valor padrao: `2026-01-01` (inicio deste ano)
-- Permite ao admin definir a data minima de importacao por funil
+Adicionar coluna `form_filled_at` (TIMESTAMP WITH TIME ZONE, nullable) na tabela `leads`.
 
-### Parte 2: Adicionar `date_column` ao mapeamento
+### Parte 2: Edge Function (`import-leads-sheet`)
 
-Adicionar o campo `date_column` na interface `ColumnMapping` da Edge Function. Esse campo indica qual coluna da planilha contem a data do lead.
+Na funcao `mapRowToLead`, apos ja ter o mapeamento de `date_column`:
+- Ler o valor da coluna de data da planilha
+- Usar a funcao `parseLeadDate` ja existente para converter o valor
+- Salvar o resultado em `form_filled_at` no objeto do lead
 
-### Parte 3: Filtrar linhas na Edge Function
+Isso reutiliza toda a logica de parsing de datas (DD/MM/YYYY, ISO, serial do Google) que ja foi implementada.
 
-Na funcao `import-leads-sheet/index.ts`, no loop de processamento de linhas (linha ~654):
-- Ler o valor da coluna de data mapeada
-- Fazer parsing da data (suportando formatos comuns: DD/MM/YYYY, YYYY-MM-DD, MM/DD/YYYY)
-- Comparar com `import_from_date` do funil
-- Pular (skip) linhas com data anterior ao filtro
+### Parte 3: Atualizar tipos TypeScript
 
-### Parte 4: Atualizar a UI do Funil (FunnelFormModal)
+Adicionar `form_filled_at` ao tipo `Lead` em `src/types/database.ts`. O arquivo `src/integrations/supabase/types.ts` sera atualizado automaticamente apos a migracao.
 
-No formulario de configuracao de funil:
-- Adicionar campo "Coluna de Data" no mapeamento de colunas
-- Adicionar campo "Importar a partir de" com date picker (padrao: 01/01/2026)
+### Parte 4: Exibir na interface
+
+- **Tabela de Leads** (`src/pages/Leads.tsx`): Adicionar coluna "Data Formulario" mostrando a data formatada
+- **Detalhes do Lead** (`src/components/leads/LeadDetailsSheet.tsx`): Mostrar "Data de Preenchimento" na secao de informacoes
 
 ## Detalhes Tecnicos
 
+Alteracao principal na Edge Function (dentro de `mapRowToLead`):
+
 ```text
-Fluxo de importacao atualizado:
+// Apos o mapeamento existente, adicionar:
+const dateColumnName = mapping.date_column;
+const dateValue = getColumnValue(dateColumnName);
+const parsedDate = dateValue ? parseLeadDate(dateValue) : null;
 
-Para cada linha da planilha:
-  1. Verificar duplicata (sheet_row_id, email, phone) -> skip
-  2. [NOVO] Ler coluna de data mapeada
-  3. [NOVO] Se data < import_from_date -> skip (contabilizar como filtrado)
-  4. Mapear campos e inserir lead
+return {
+  ...campos_existentes,
+  form_filled_at: parsedDate ? parsedDate.toISOString() : null,
+};
 ```
-
-Formatos de data suportados no parsing:
-- `DD/MM/YYYY` (formato BR, mais comum)
-- `YYYY-MM-DD` (formato ISO)
-- `MM/DD/YYYY` (formato US)
-- Timestamps do Google Sheets (numero serial)
 
 ## Arquivos Alterados
 
-1. **Nova migracao SQL**: Adicionar coluna `import_from_date` na tabela `funnels`
-2. **`supabase/functions/import-leads-sheet/index.ts`**: Adicionar `date_column` ao ColumnMapping, logica de filtro por data
-3. **`src/components/admin/FunnelFormModal.tsx`**: Adicionar campos de coluna de data e data minima
-4. **`src/components/admin/SheetColumnMapper.tsx`**: Adicionar mapeamento da coluna de data
+1. **Nova migracao SQL** - Adicionar coluna `form_filled_at` na tabela `leads`
+2. **`supabase/functions/import-leads-sheet/index.ts`** - Preencher `form_filled_at` no `mapRowToLead`
+3. **`src/types/database.ts`** - Adicionar campo ao tipo `Lead`
+4. **`src/pages/Leads.tsx`** - Adicionar coluna na tabela
+5. **`src/components/leads/LeadDetailsSheet.tsx`** - Exibir data nos detalhes
 
 ## Resultado Esperado
 
-- Ao sincronizar o funil "50 Scripts" (22.874 linhas), somente os leads de 2026 serao importados
-- Reducao significativa no volume de dados (estimativa: ~2.000-5.000 leads relevantes vs 22.000+ total)
-- O admin pode ajustar a data de corte por funil conforme necessidade
+- Leads importados terao a data original do formulario preservada
+- A interface mostrara tanto "Data Formulario" (quando preencheu) quanto "Criado em" (quando entrou no sistema)
+- Leads ja existentes terao `form_filled_at = null` (podem ser reimportados futuramente se necessario)
