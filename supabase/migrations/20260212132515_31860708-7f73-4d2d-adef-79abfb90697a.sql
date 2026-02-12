@@ -1,0 +1,1 @@
+ALTER TABLE public.funnels ADD COLUMN import_from_date DATE DEFAULT '2026-01-01';

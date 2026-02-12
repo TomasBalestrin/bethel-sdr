@@ -25,6 +25,7 @@ interface ColumnMapping {
   main_pain?: string;
   has_partner?: string;
   knows_specialist_since?: string;
+  date_column?: string;
 }
 
 interface SheetColumnMapperProps {
@@ -47,6 +48,7 @@ const SYSTEM_FIELDS = [
   { key: 'main_pain', label: 'Principal Desafio', required: false },
   { key: 'has_partner', label: 'Tem Sócio', required: false },
   { key: 'knows_specialist_since', label: 'Conhece Desde', required: false },
+  { key: 'date_column', label: 'Coluna de Data', required: false },
 ] as const;
 
 export function SheetColumnMapper({

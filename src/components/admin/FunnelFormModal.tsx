@@ -2,17 +2,21 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { format } from 'date-fns';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Separator } from '@/components/ui/separator';
 import { useCreateFunnel, useUpdateFunnel } from '@/hooks/useFunnels';
 import { useTestSheetConnection } from '@/hooks/useSheetSync';
 import { SheetColumnMapper } from './SheetColumnMapper';
 import type { Funnel } from '@/types/database';
-import { Loader2, CheckCircle2, Link2 } from 'lucide-react';
+import { Loader2, CheckCircle2, Link2, CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const funnelSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
@@ -37,6 +41,7 @@ interface ColumnMapping {
   main_pain?: string;
   has_partner?: string;
   knows_specialist_since?: string;
+  date_column?: string;
 }
 
 interface FunnelFormModalProps {
@@ -53,6 +58,7 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
   
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
   const [connectionTested, setConnectionTested] = useState(false);
+  const [importFromDate, setImportFromDate] = useState<Date>(new Date(2026, 0, 1));
 
   const form = useForm<FunnelFormData>({
     resolver: zodResolver(funnelSchema),
@@ -88,6 +94,7 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
           auto_sync_enabled: funnel.auto_sync_enabled ?? false,
         });
         setColumnMapping((funnel.column_mapping as ColumnMapping) || {});
+        setImportFromDate(funnel.import_from_date ? new Date(funnel.import_from_date + 'T00:00:00') : new Date(2026, 0, 1));
       } else {
         form.reset({
           name: '',
@@ -97,6 +104,7 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
           auto_sync_enabled: false,
         });
         setColumnMapping({});
+        setImportFromDate(new Date(2026, 0, 1));
       }
       setConnectionTested(false);
     }
@@ -129,6 +137,8 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
       ? columnMapping as Record<string, string>
       : null;
 
+    const importDateStr = format(importFromDate, 'yyyy-MM-dd');
+
     if (isEditing && funnel) {
       updateFunnel.mutate(
         { 
@@ -139,6 +149,7 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
           column_mapping: mappingToSave,
           active: data.active,
           auto_sync_enabled: data.auto_sync_enabled,
+          import_from_date: importDateStr,
         },
         { onSuccess: () => onOpenChange(false) }
       );
@@ -153,6 +164,7 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
           auto_sync_enabled: data.auto_sync_enabled,
           last_sync_at: null,
           sync_interval_minutes: 30,
+          import_from_date: importDateStr,
         }, 
         { onSuccess: () => onOpenChange(false) }
       );
@@ -278,7 +290,39 @@ export function FunnelFormModal({ funnel, open, onOpenChange }: FunnelFormModalP
                 />
               )}
 
-              {/* Auto Sync */}
+              {/* Import From Date */}
+              {hasSheetConfig && (
+                <div className="space-y-2">
+                  <FormLabel>Importar a partir de</FormLabel>
+                  <FormDescription>
+                    Somente leads com data igual ou posterior serão importados
+                  </FormDescription>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !importFromDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {importFromDate ? format(importFromDate, "dd/MM/yyyy") : "Selecione uma data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={importFromDate}
+                        onSelect={(date) => date && setImportFromDate(date)}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              )}
+
               {hasSheetConfig && (
                 <FormField
                   control={form.control}
