@@ -39,7 +39,7 @@ interface FunnelData {
 interface ImportRequest {
   funnelId?: string;
   syncAll?: boolean;
-  action?: 'import' | 'fetch-headers' | 'test-connection';
+  action?: 'import' | 'fetch-headers' | 'test-connection' | 'update-dates';
   sheetUrl?: string;
   sheetName?: string;
   startRow?: number; // For pagination
@@ -606,6 +606,136 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, headers }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Handle update-dates action (backfill form_filled_at for existing leads)
+    if (action === 'update-dates' && funnelId) {
+      // Fetch the funnel
+      const { data: funnelData, error: funnelError } = await supabase
+        .from('funnels')
+        .select('*')
+        .eq('id', funnelId)
+        .single();
+
+      if (funnelError || !funnelData) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Funnel not found' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        );
+      }
+
+      const funnel = funnelData as FunnelData;
+      if (!funnel.google_sheet_url || !funnel.sheet_name || !funnel.column_mapping) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Funnel not fully configured' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      const dateColumnName = funnel.column_mapping.date_column;
+      if (!dateColumnName) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'No date column mapped for this funnel' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      const spreadsheetId = extractSpreadsheetId(funnel.google_sheet_url);
+      if (!spreadsheetId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid Google Sheets URL' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      const accessTokenForUpdate = await getGoogleAccessToken(serviceEmail, privateKey);
+      const headers = await fetchSheetHeaders(accessTokenForUpdate, spreadsheetId, funnel.sheet_name);
+      
+      const endRow = startRow + BATCH_SIZE - 1;
+      const { rows: dataRows, totalRows } = await fetchSheetData(
+        accessTokenForUpdate, spreadsheetId, funnel.sheet_name, startRow, endRow
+      );
+
+      console.log(`[update-dates] Funnel ${funnel.name}: fetched ${dataRows.length} rows (${startRow}-${endRow}), total: ${totalRows}`);
+
+      if (dataRows.length === 0) {
+        return new Response(
+          JSON.stringify({ success: true, totalUpdated: 0, hasMore: false }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const dateColIndex = headers.findIndex(h => h.toLowerCase().trim() === dateColumnName.toLowerCase().trim());
+      if (dateColIndex < 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Date column "${dateColumnName}" not found in sheet headers` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        );
+      }
+
+      // Build updates: collect sheet_row_id -> parsed date
+      const updates: { sheetRowId: string; formFilledAt: string }[] = [];
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        const absoluteRowIndex = startRow + i;
+        const sheetRowId = `${funnel.id}_row_${absoluteRowIndex}`;
+        const dateValue = row[dateColIndex]?.trim();
+        const parsedDate = dateValue ? parseLeadDate(dateValue) : null;
+        if (parsedDate) {
+          updates.push({ sheetRowId, formFilledAt: parsedDate.toISOString() });
+        }
+      }
+
+      console.log(`[update-dates] ${updates.length} rows have valid dates out of ${dataRows.length}`);
+
+      // Batch update: process in chunks
+      let totalUpdated = 0;
+      const UPDATE_CHUNK = 100;
+      for (let i = 0; i < updates.length; i += UPDATE_CHUNK) {
+        const chunk = updates.slice(i, i + UPDATE_CHUNK);
+        const sheetRowIds = chunk.map(u => u.sheetRowId);
+
+        // Fetch leads that need updating (form_filled_at IS NULL)
+        const { data: existingLeads } = await supabase
+          .from('leads')
+          .select('id, sheet_row_id')
+          .in('sheet_row_id', sheetRowIds)
+          .is('form_filled_at', null);
+
+        if (existingLeads && existingLeads.length > 0) {
+          const leadMap = new Map(existingLeads.map((l: { id: string; sheet_row_id: string }) => [l.sheet_row_id, l.id]));
+          
+          for (const update of chunk) {
+            const leadId = leadMap.get(update.sheetRowId);
+            if (leadId) {
+              const { error: updateError } = await supabase
+                .from('leads')
+                .update({ form_filled_at: update.formFilledAt })
+                .eq('id', leadId);
+              
+              if (!updateError) totalUpdated++;
+            }
+          }
+        }
+      }
+
+      const processedUpTo = startRow + dataRows.length - 1;
+      const hasMore = processedUpTo < totalRows - 1;
+      const nextRow = hasMore ? processedUpTo + 1 : undefined;
+
+      console.log(`[update-dates] Updated ${totalUpdated} leads, hasMore: ${hasMore}`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          totalUpdated,
+          hasMore,
+          nextRow,
+          totalRows: totalRows - 1,
+          processedRows: processedUpTo - 1,
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
