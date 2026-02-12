@@ -478,6 +478,7 @@ export type Database = {
           distributed_at: string | null
           distribution_origin: string | null
           email: string | null
+          form_filled_at: string | null
           full_name: string
           funnel_id: string | null
           has_partner: boolean | null
@@ -510,6 +511,7 @@ export type Database = {
           distributed_at?: string | null
           distribution_origin?: string | null
           email?: string | null
+          form_filled_at?: string | null
           full_name: string
           funnel_id?: string | null
           has_partner?: boolean | null
@@ -542,6 +544,7 @@ export type Database = {
           distributed_at?: string | null
           distribution_origin?: string | null
           email?: string | null
+          form_filled_at?: string | null
           full_name?: string
           funnel_id?: string | null
           has_partner?: boolean | null

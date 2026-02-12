@@ -1,0 +1,1 @@
+ALTER TABLE public.leads ADD COLUMN form_filled_at TIMESTAMP WITH TIME ZONE;

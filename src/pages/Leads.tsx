@@ -176,7 +176,8 @@ export default function Leads() {
                   <TableHead>Classificação</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Funil</TableHead>
-                  <TableHead>Data</TableHead>
+                  <TableHead>Data Formulário</TableHead>
+                  <TableHead>Criado em</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -209,6 +210,11 @@ export default function Leads() {
                       <LeadStatusBadge status={lead.status} />
                     </TableCell>
                     <TableCell>{(lead as Lead).funnel?.name || '-'}</TableCell>
+                    <TableCell>
+                      {lead.form_filled_at 
+                        ? format(new Date(lead.form_filled_at), 'dd/MM/yyyy', { locale: ptBR })
+                        : '-'}
+                    </TableCell>
                     <TableCell>
                       {format(new Date(lead.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                     </TableCell>

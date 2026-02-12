@@ -67,6 +67,7 @@ export interface Lead {
   distributed_at: string | null;
   distribution_origin: 'manual' | 'automatic' | null;
   crm_column_id: string | null;
+  form_filled_at: string | null;
 }
 
 export interface Niche {
