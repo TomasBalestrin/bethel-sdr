@@ -96,12 +96,12 @@ export function SDRCapacityFormModal({
 
           <div className="space-y-2">
             <Label htmlFor="funnel">Funil (opcional)</Label>
-            <Select value={funnelId} onValueChange={setFunnelId}>
+            <Select value={funnelId || '__none__'} onValueChange={(v) => setFunnelId(v === '__none__' ? '' : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="Geral (todos os funis)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Geral (todos os funis)</SelectItem>
+                <SelectItem value="__none__">Geral (todos os funis)</SelectItem>
                 {funnels?.filter(f => f.active).map((funnel) => (
                   <SelectItem key={funnel.id} value={funnel.id}>
                     {funnel.name}

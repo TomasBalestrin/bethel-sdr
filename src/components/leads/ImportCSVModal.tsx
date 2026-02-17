@@ -232,14 +232,14 @@ export function ImportCSVModal({ open, onOpenChange }: ImportCSVModalProps) {
                       {field.required && <span className="text-destructive ml-1">*</span>}
                     </div>
                     <Select
-                      value={columnMapping[field.key as keyof ColumnMapping]}
-                      onValueChange={(value) => handleMappingChange(field.key, value)}
+                      value={columnMapping[field.key as keyof ColumnMapping] || '__none__'}
+                      onValueChange={(value) => handleMappingChange(field.key, value === '__none__' ? '' : value)}
                     >
                       <SelectTrigger className="w-[200px]">
                         <SelectValue placeholder="Selecione coluna" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Não mapear</SelectItem>
+                        <SelectItem value="__none__">Não mapear</SelectItem>
                         {csvHeaders.map((header, index) => (
                           <SelectItem key={index} value={header}>
                             {header}
