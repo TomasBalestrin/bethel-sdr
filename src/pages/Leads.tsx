@@ -102,12 +102,12 @@ export default function Leads() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Status</Label>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="novo">Novo</SelectItem>
                       <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
                       <SelectItem value="agendado">Agendado</SelectItem>
@@ -119,12 +119,12 @@ export default function Leads() {
 
                 <div className="space-y-2">
                   <Label>Classificação</Label>
-                  <Select value={classificationFilter} onValueChange={setClassificationFilter}>
+                  <Select value={classificationFilter || 'all'} onValueChange={(v) => setClassificationFilter(v === 'all' ? '' : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todas" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas</SelectItem>
+                      <SelectItem value="all">Todas</SelectItem>
                       <SelectItem value="diamante">Diamante</SelectItem>
                       <SelectItem value="ouro">Ouro</SelectItem>
                       <SelectItem value="prata">Prata</SelectItem>
@@ -135,12 +135,12 @@ export default function Leads() {
 
                 <div className="space-y-2">
                   <Label>Funil</Label>
-                  <Select value={funnelFilter} onValueChange={setFunnelFilter}>
+                  <Select value={funnelFilter || 'all'} onValueChange={(v) => setFunnelFilter(v === 'all' ? '' : v)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos os funis" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       {funnels?.map(funnel => (
                         <SelectItem key={funnel.id} value={funnel.id}>
                           {funnel.name}
