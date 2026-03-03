@@ -65,30 +65,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const [profileResult, roleResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
+      ]);
 
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
+      if (profileResult.error) {
+        console.error('Error fetching profile:', profileResult.error);
       } else {
-        setProfile(profileData as Profile);
+        setProfile(profileResult.data as Profile);
       }
 
-      // Fetch role
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (roleError) {
-        console.error('Error fetching role:', roleError);
+      if (roleResult.error) {
+        console.error('Error fetching role:', roleResult.error);
       } else {
-        setRole((roleData?.role as AppRole) ?? null);
+        setRole((roleResult.data?.role as AppRole) ?? null);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);

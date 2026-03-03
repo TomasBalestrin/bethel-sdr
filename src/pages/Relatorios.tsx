@@ -4,6 +4,8 @@ import { subDays } from 'date-fns';
 import { BarChart3, Users, Phone, Layers, Trophy } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Skeleton } from '@/components/ui/skeleton';
+import { QueryErrorState } from '@/components/shared/QueryErrorState';
 import { useAuth } from '@/hooks/useAuth';
 import { useUsersByRole } from '@/hooks/useUsers';
 import { ReportFilters } from '@/components/reports/ReportFilters';
@@ -31,11 +33,6 @@ import {
   exportCloserData,
   exportFunnelData,
 } from '@/lib/exportUtils';
-import {
-  exportSDRToPDF,
-  exportCloserToPDF,
-  exportFunnelToPDF,
-} from '@/lib/pdfExportUtils';
 import { toast } from 'sonner';
 
 export default function Relatorios() {
@@ -52,14 +49,22 @@ export default function Relatorios() {
   const { data: sdrs } = useUsersByRole('sdr');
   const { data: closers } = useUsersByRole('closer');
 
-  // Stats hooks
-  const { data: sdrStats, isLoading: sdrStatsLoading } = useSDRStats(selectedSDR, dateRange);
-  const { data: closerStats, isLoading: closerStatsLoading } = useCloserStats(selectedCloser, dateRange);
-  const { data: funnelStats, isLoading: funnelStatsLoading } = useFunnelStats(dateRange);
-  const { data: sdrRankings, isLoading: sdrRankingsLoading } = useSDRRankings(dateRange);
-  const { data: closerRankings, isLoading: closerRankingsLoading } = useCloserRankings(dateRange);
-  const { data: allSDRsPerformance, isLoading: allSDRsLoading } = useAllSDRsPerformance(dateRange);
-  const { data: allClosersPerformance, isLoading: allClosersLoading } = useAllClosersPerformance(dateRange);
+  // Stats hooks with error handling
+  const { data: sdrStats, isLoading: sdrStatsLoading, isError: sdrStatsError, refetch: refetchSdrStats } = useSDRStats(selectedSDR, dateRange);
+  const { data: closerStats, isLoading: closerStatsLoading, isError: closerStatsError, refetch: refetchCloserStats } = useCloserStats(selectedCloser, dateRange);
+  const { data: funnelStats, isLoading: funnelStatsLoading, isError: funnelStatsError, refetch: refetchFunnelStats } = useFunnelStats(dateRange);
+  const { data: sdrRankings, isLoading: sdrRankingsLoading, isError: sdrRankingsError, refetch: refetchSdrRankings } = useSDRRankings(dateRange);
+  const { data: closerRankings, isLoading: closerRankingsLoading, isError: closerRankingsError, refetch: refetchCloserRankings } = useCloserRankings(dateRange);
+  const { data: allSDRsPerformance, isLoading: allSDRsLoading, isError: allSDRsError, refetch: refetchAllSDRs } = useAllSDRsPerformance(dateRange);
+  const { data: allClosersPerformance, isLoading: allClosersLoading, isError: allClosersError, refetch: refetchAllClosers } = useAllClosersPerformance(dateRange);
+
+  // Unified loading/error per tab
+  const sdrTabLoading = sdrStatsLoading || allSDRsLoading;
+  const sdrTabError = sdrStatsError || allSDRsError;
+  const closerTabLoading = closerStatsLoading || allClosersLoading;
+  const closerTabError = closerStatsError || allClosersError;
+  const rankingsTabLoading = sdrRankingsLoading || closerRankingsLoading;
+  const rankingsTabError = sdrRankingsError || closerRankingsError;
 
   // Access protection - only Admin and Lider can access
   if (!authLoading && !isAdminOrLider) {
@@ -98,14 +103,15 @@ export default function Relatorios() {
     exportFunnelData(funnelStats, dateRange, format);
   };
 
-  // PDF Export handlers
+  // PDF Export handlers (lazy-loaded to reduce bundle size)
   const handleExportSDRPDF = async () => {
     if (!allSDRsPerformance) return;
     try {
+      const { exportSDRToPDF } = await import('@/lib/pdfExportUtils');
       const pdfData = allSDRsPerformance.map(sdr => ({
         name: sdr.name,
         leadsRecebidos: sdr.atribuidos,
-        leadsContatados: sdr.agendados, // Using agendados as proxy for contacted
+        leadsContatados: sdr.agendados,
         taxaContato: sdr.atribuidos > 0 ? (sdr.agendados / sdr.atribuidos) * 100 : 0,
         agendamentos: sdr.agendados,
         taxaAgendamento: sdr.atribuidos > 0 ? (sdr.agendados / sdr.atribuidos) * 100 : 0,
@@ -121,6 +127,7 @@ export default function Relatorios() {
   const handleExportCloserPDF = async () => {
     if (!allClosersPerformance) return;
     try {
+      const { exportCloserToPDF } = await import('@/lib/pdfExportUtils');
       const pdfData = allClosersPerformance.map(closer => ({
         name: closer.name,
         agendamentos: closer.agendadas,
@@ -141,6 +148,7 @@ export default function Relatorios() {
   const handleExportFunnelPDF = async () => {
     if (!funnelStats) return;
     try {
+      const { exportFunnelToPDF } = await import('@/lib/pdfExportUtils');
       const pdfData = funnelStats.map(funnel => ({
         name: funnel.name,
         totalLeads: funnel.leads,
@@ -212,15 +220,24 @@ export default function Relatorios() {
               />
             </div>
 
-            <SDRMetricsCards metrics={sdrStats} isLoading={sdrStatsLoading} />
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <SDRPerformanceChart data={allSDRsPerformance} isLoading={allSDRsLoading} />
-              <ClassificationPieChart 
-                data={sdrStats?.classificacaoLeads} 
-                isLoading={sdrStatsLoading} 
-              />
-            </div>
+            {sdrTabError ? (
+              <QueryErrorState onRetry={() => { refetchSdrStats(); refetchAllSDRs(); }} />
+            ) : sdrTabLoading ? (
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+                </div>
+                <Skeleton className="h-[300px]" />
+              </div>
+            ) : (
+              <>
+                <SDRMetricsCards metrics={sdrStats} isLoading={false} />
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <SDRPerformanceChart data={allSDRsPerformance} isLoading={false} />
+                  <ClassificationPieChart data={sdrStats?.classificacaoLeads} isLoading={false} />
+                </div>
+              </>
+            )}
           </TabsContent>
 
           {/* Closers Tab */}
@@ -242,9 +259,21 @@ export default function Relatorios() {
               />
             </div>
 
-            <CloserMetricsCards metrics={closerStats} isLoading={closerStatsLoading} />
-
-            <CloserPerformanceChart data={allClosersPerformance} isLoading={allClosersLoading} />
+            {closerTabError ? (
+              <QueryErrorState onRetry={() => { refetchCloserStats(); refetchAllClosers(); }} />
+            ) : closerTabLoading ? (
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+                </div>
+                <Skeleton className="h-[300px]" />
+              </div>
+            ) : (
+              <>
+                <CloserMetricsCards metrics={closerStats} isLoading={false} />
+                <CloserPerformanceChart data={allClosersPerformance} isLoading={false} />
+              </>
+            )}
           </TabsContent>
 
           {/* Funis Tab */}
@@ -263,9 +292,21 @@ export default function Relatorios() {
               />
             </div>
 
-            <FunnelMetricsCards data={funnelStats} isLoading={funnelStatsLoading} />
-
-            <FunnelComparisonChart data={funnelStats} isLoading={funnelStatsLoading} />
+            {funnelStatsError ? (
+              <QueryErrorState onRetry={() => { refetchFunnelStats(); }} />
+            ) : funnelStatsLoading ? (
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+                </div>
+                <Skeleton className="h-[300px]" />
+              </div>
+            ) : (
+              <>
+                <FunnelMetricsCards data={funnelStats} isLoading={false} />
+                <FunnelComparisonChart data={funnelStats} isLoading={false} />
+              </>
+            )}
           </TabsContent>
 
           {/* Rankings Tab */}
@@ -276,46 +317,51 @@ export default function Relatorios() {
               showUserFilter={false}
             />
 
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* SDR Rankings */}
-              <RankingTable
-                title="SDRs - Taxa de Agendamento"
-                description="Ranking por taxa de conversão para agendamento"
-                data={sdrRankings?.byAgendamento}
-                isLoading={sdrRankingsLoading}
-                valueLabel="Taxa"
-                valueFormatter={formatPercent}
-                secondaryLabel="Agendados"
-              />
-              <RankingTable
-                title="SDRs - Conversões"
-                description="Ranking por número de conversões"
-                data={sdrRankings?.byConversao}
-                isLoading={sdrRankingsLoading}
-                valueLabel="Conversões"
-                secondaryLabel="Total Leads"
-              />
-
-              {/* Closer Rankings */}
-              <RankingTable
-                title="Closers - Taxa de Conversão"
-                description="Ranking por taxa de fechamento"
-                data={closerRankings?.byConversao}
-                isLoading={closerRankingsLoading}
-                valueLabel="Taxa"
-                valueFormatter={formatPercent}
-                secondaryLabel="Conversões"
-              />
-              <RankingTable
-                title="Closers - Valor Gerado"
-                description="Ranking por valor total em vendas"
-                data={closerRankings?.byValor}
-                isLoading={closerRankingsLoading}
-                valueLabel="Valor"
-                valueFormatter={formatCurrency}
-                secondaryLabel="Conversões"
-              />
-            </div>
+            {rankingsTabError ? (
+              <QueryErrorState onRetry={() => { refetchSdrRankings(); refetchCloserRankings(); }} />
+            ) : rankingsTabLoading ? (
+              <div className="grid gap-6 md:grid-cols-2">
+                {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-64" />)}
+              </div>
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                <RankingTable
+                  title="SDRs - Taxa de Agendamento"
+                  description="Ranking por taxa de conversão para agendamento"
+                  data={sdrRankings?.byAgendamento}
+                  isLoading={false}
+                  valueLabel="Taxa"
+                  valueFormatter={formatPercent}
+                  secondaryLabel="Agendados"
+                />
+                <RankingTable
+                  title="SDRs - Conversões"
+                  description="Ranking por número de conversões"
+                  data={sdrRankings?.byConversao}
+                  isLoading={false}
+                  valueLabel="Conversões"
+                  secondaryLabel="Total Leads"
+                />
+                <RankingTable
+                  title="Closers - Taxa de Conversão"
+                  description="Ranking por taxa de fechamento"
+                  data={closerRankings?.byConversao}
+                  isLoading={false}
+                  valueLabel="Taxa"
+                  valueFormatter={formatPercent}
+                  secondaryLabel="Conversões"
+                />
+                <RankingTable
+                  title="Closers - Valor Gerado"
+                  description="Ranking por valor total em vendas"
+                  data={closerRankings?.byValor}
+                  isLoading={false}
+                  valueLabel="Valor"
+                  valueFormatter={formatCurrency}
+                  secondaryLabel="Conversões"
+                />
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

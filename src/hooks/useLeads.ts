@@ -9,20 +9,29 @@ interface LeadsFilters {
   status?: LeadStatus[];
   funnelId?: string;
   assignedSdrId?: string;
+  page?: number;
+  pageSize?: number;
 }
 
 export function useLeads(filters?: LeadsFilters) {
+  const page = filters?.page ?? 1;
+  const pageSize = filters?.pageSize ?? 50;
+
   return useQuery({
     queryKey: ['leads', filters],
     queryFn: async () => {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       let query = supabase
         .from('leads')
         .select(`
           *,
           funnel:funnels(id, name),
           assigned_sdr:profiles!leads_assigned_sdr_profile_fkey(id, name, email)
-        `)
-        .order('created_at', { ascending: false });
+        `, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (filters?.search) {
         query = query.or(`full_name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
@@ -44,10 +53,10 @@ export function useLeads(filters?: LeadsFilters) {
         query = query.eq('assigned_sdr_id', filters.assignedSdrId);
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
 
       if (error) throw error;
-      return data;
+      return { data: data ?? [], count: count ?? 0, page, pageSize };
     },
   });
 }
@@ -105,7 +114,8 @@ export function useLeadsStats() {
     queryFn: async () => {
       const { data: leads, error } = await supabase
         .from('leads')
-        .select('id, classification, status, created_at');
+        .select('id, classification, status, created_at')
+        .limit(5000);
 
       if (error) throw error;
 
