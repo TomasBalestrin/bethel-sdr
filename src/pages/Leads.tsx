@@ -123,8 +123,7 @@ export default function Leads() {
                       <SelectItem value="novo">Novo</SelectItem>
                       <SelectItem value="em_atendimento">Em Atendimento</SelectItem>
                       <SelectItem value="agendado">Agendado</SelectItem>
-                      <SelectItem value="convertido">Convertido</SelectItem>
-                      <SelectItem value="perdido">Perdido</SelectItem>
+                      <SelectItem value="concluido">Concluído</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

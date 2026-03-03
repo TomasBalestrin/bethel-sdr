@@ -21,14 +21,13 @@ export function useLeads(filters?: LeadsFilters) {
   return useQuery({
     queryKey: ['leads', filters],
     queryFn: async () => {
-      let query = supabase
-        .from('leads')
-        .select(`
-          *,
-          funnel:funnels(id, name),
-          assigned_sdr:profiles!leads_assigned_sdr_profile_fkey(id, name, email)
-        `, isPaginated ? { count: 'exact' } : undefined)
-        .order('created_at', { ascending: false });
+      const selectColumns = `*, funnel:funnels(id, name), assigned_sdr:profiles!leads_assigned_sdr_profile_fkey(id, name, email)`;
+
+      let query = isPaginated
+        ? supabase.from('leads').select(selectColumns, { count: 'exact' })
+        : supabase.from('leads').select(selectColumns);
+
+      query = query.order('created_at', { ascending: false });
 
       if (isPaginated) {
         const from = (page - 1) * pageSize;
