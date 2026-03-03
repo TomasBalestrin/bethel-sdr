@@ -14,24 +14,27 @@ interface LeadsFilters {
 }
 
 export function useLeads(filters?: LeadsFilters) {
-  const page = filters?.page ?? 1;
+  const page = filters?.page;
   const pageSize = filters?.pageSize ?? 50;
+  const isPaginated = page !== undefined;
 
   return useQuery({
     queryKey: ['leads', filters],
     queryFn: async () => {
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-
       let query = supabase
         .from('leads')
         .select(`
           *,
           funnel:funnels(id, name),
           assigned_sdr:profiles!leads_assigned_sdr_profile_fkey(id, name, email)
-        `, { count: 'exact' })
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        `, isPaginated ? { count: 'exact' } : undefined)
+        .order('created_at', { ascending: false });
+
+      if (isPaginated) {
+        const from = (page - 1) * pageSize;
+        const to = from + pageSize - 1;
+        query = query.range(from, to);
+      }
 
       if (filters?.search) {
         query = query.or(`full_name.ilike.%${filters.search}%,phone.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
@@ -56,7 +59,12 @@ export function useLeads(filters?: LeadsFilters) {
       const { data, error, count } = await query;
 
       if (error) throw error;
-      return { data: data ?? [], count: count ?? 0, page, pageSize };
+
+      if (isPaginated) {
+        return { data: data ?? [], count: count ?? 0, page, pageSize };
+      }
+
+      return data;
     },
   });
 }

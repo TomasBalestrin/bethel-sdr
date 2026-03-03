@@ -45,8 +45,9 @@ export default function Leads() {
     pageSize,
   });
 
-  const leads = leadsResult?.data;
-  const totalCount = leadsResult?.count ?? 0;
+  const paginatedResult = leadsResult && 'count' in leadsResult ? leadsResult : null;
+  const leads = paginatedResult?.data ?? (Array.isArray(leadsResult) ? leadsResult : undefined);
+  const totalCount = paginatedResult?.count ?? 0;
   const totalPages = Math.ceil(totalCount / pageSize);
   const { data: funnels } = useFunnels();
   const updateLead = useUpdateLead();
