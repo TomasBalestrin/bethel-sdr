@@ -99,61 +99,6 @@ export function useUpdateLead() {
   });
 }
 
-export function useDistributeLeads() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ 
-      leadIds, 
-      sdrIds, 
-      mode 
-    }: { 
-      leadIds: string[]; 
-      sdrIds: string[]; 
-      mode: 'manual' | 'automatic';
-    }) => {
-      // Distribute leads evenly among SDRs
-      const updates = leadIds.map((leadId, index) => ({
-        id: leadId,
-        assigned_sdr_id: sdrIds[index % sdrIds.length],
-        status: 'em_atendimento' as LeadStatus,
-      }));
-
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('leads')
-          .update({ 
-            assigned_sdr_id: update.assigned_sdr_id,
-            status: update.status
-          })
-          .eq('id', update.id);
-
-        if (error) throw error;
-      }
-
-      // Log distribution
-      const { error: logError } = await supabase
-        .from('lead_distribution_logs')
-        .insert({
-          leads_count: leadIds.length,
-          sdr_ids: sdrIds,
-          distribution_mode: mode,
-        });
-
-      if (logError) throw logError;
-
-      return { count: leadIds.length };
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast.success(`${data.count} leads distribuídos com sucesso`);
-    },
-    onError: (error) => {
-      toast.error('Erro ao distribuir leads: ' + error.message);
-    },
-  });
-}
-
 export function useLeadsStats() {
   return useQuery({
     queryKey: ['leads-stats'],

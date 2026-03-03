@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 export interface CleanupLog {
   id: string;
@@ -94,13 +94,13 @@ export function useEligibleLeadsForCleanup() {
 
       if (error) throw error;
 
-      return (data || []).map((lead: any) => ({
+      return (data || []).map((lead) => ({
         id: lead.id,
         full_name: lead.full_name,
         classification: lead.classification,
         qualification: lead.qualification,
         created_at: lead.created_at,
-        funnel_name: lead.funnel?.name || null,
+        funnel_name: (lead.funnel as { name: string } | null)?.name || null,
       }));
     },
   });
@@ -111,36 +111,20 @@ export function useExecuteCleanup() {
 
   return useMutation({
     mutationFn: async ({ dryRun = false }: { dryRun?: boolean } = {}) => {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cleanup-leads`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({ dryRun }),
-        }
-      );
+      const { data, error } = await supabase.functions.invoke('cleanup-leads', {
+        body: { dryRun },
+      });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Erro ao executar limpeza');
-      }
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Erro ao executar limpeza');
 
-      return response.json();
+      return data;
     },
     onSuccess: (data, variables) => {
       if (variables.dryRun) {
-        toast({
-          title: 'Preview concluído',
-          description: `${data.leadsToClean || 0} leads seriam removidos`,
-        });
+        toast.success(`Preview: ${data.cleaned_count || 0} leads seriam removidos`);
       } else {
-        toast({
-          title: 'Limpeza executada',
-          description: `${data.cleanedCount || 0} leads foram arquivados`,
-        });
+        toast.success(`${data.cleaned_count || 0} leads foram arquivados`);
         queryClient.invalidateQueries({ queryKey: ['cleanup-logs'] });
         queryClient.invalidateQueries({ queryKey: ['cleanup-stats'] });
         queryClient.invalidateQueries({ queryKey: ['eligible-leads-cleanup'] });
@@ -148,11 +132,7 @@ export function useExecuteCleanup() {
       }
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Erro na limpeza',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast.error('Erro na limpeza: ' + error.message);
     },
   });
 }
