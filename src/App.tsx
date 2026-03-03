@@ -17,6 +17,7 @@ const Calendario = lazy(() => import("./pages/Calendario"));
 const Relatorios = lazy(() => import("./pages/Relatorios"));
 const Admin = lazy(() => import("./pages/Admin"));
 const LeaderDashboard = lazy(() => import("./pages/LeaderDashboard"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,6 +79,11 @@ const App = () => (
                 <Route path="/admin" element={
                   <ProtectedRoute allowedRoles={['admin', 'lider']}>
                     <Admin />
+                  </ProtectedRoute>
+                } />
+                <Route path="/perfil" element={
+                  <ProtectedRoute>
+                    <Profile />
                   </ProtectedRoute>
                 } />
                 <Route path="*" element={<NotFound />} />

@@ -5,7 +5,7 @@ import { ptBR } from 'date-fns/locale';
 export interface ExportColumn {
   key: string;
   header: string;
-  formatter?: (value: any) => string;
+  formatter?: (value: string | number | boolean | null | undefined) => string;
 }
 
 export interface SDRExportData {
@@ -44,7 +44,7 @@ const formatCurrency = (value: number) => {
 
 const formatPercent = (value: number) => `${value.toFixed(1)}%`;
 
-export function exportToCSV<T extends Record<string, any>>(
+export function exportToCSV<T extends Record<string, unknown>>(
   data: T[],
   columns: ExportColumn[],
   filename: string
@@ -69,14 +69,14 @@ export function exportToCSV<T extends Record<string, any>>(
   downloadBlob(blob, `${filename}.csv`);
 }
 
-export function exportToExcel<T extends Record<string, any>>(
+export function exportToExcel<T extends Record<string, unknown>>(
   data: T[],
   columns: ExportColumn[],
   filename: string,
   sheetName: string = 'Dados'
 ): void {
   const formattedData = data.map(row => {
-    const obj: Record<string, any> = {};
+    const obj: Record<string, unknown> = {};
     columns.forEach(col => {
       const value = row[col.key];
       obj[col.header] = col.formatter ? col.formatter(value) : value;

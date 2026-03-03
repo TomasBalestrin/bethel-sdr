@@ -35,6 +35,7 @@ import {
   QualificationRuleWithFunnel 
 } from '@/hooks/useQualificationRules';
 import { useFunnels } from '@/hooks/useFunnels';
+import type { RuleCondition, LeadClassification } from '@/types/database';
 
 const conditionSchema = z.object({
   field: z.string().min(1, 'Campo obrigatório'),
@@ -157,18 +158,22 @@ export function QualificationRuleFormModal({
     };
 
     if (rule) {
-      await updateRule.mutateAsync({ 
-        id: rule.id, 
+      await updateRule.mutateAsync({
+        id: rule.id,
         rule_name: payload.rule_name,
         funnel_id: payload.funnel_id,
-        conditions: payload.conditions as any,
+        conditions: payload.conditions as RuleCondition[],
         qualification_label: payload.qualification_label,
-        classification: payload.classification as any,
+        classification: payload.classification as LeadClassification | null,
         priority: payload.priority,
         active: payload.active,
       });
     } else {
-      await createRule.mutateAsync(payload as any);
+      await createRule.mutateAsync({
+        ...payload,
+        conditions: payload.conditions as RuleCondition[],
+        classification: payload.classification as LeadClassification | null,
+      });
     }
     onOpenChange(false);
   };

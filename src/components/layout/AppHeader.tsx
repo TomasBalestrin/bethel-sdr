@@ -1,4 +1,5 @@
 import { LogOut, User } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 export function AppHeader() {
   const { profile, role, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const initials = profile?.name
     ?.split(' ')
@@ -73,7 +75,7 @@ export function AppHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="h-10 gap-2.5 cursor-pointer">
+            <DropdownMenuItem className="h-10 gap-2.5 cursor-pointer" onClick={() => navigate('/perfil')}>
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="font-medium">Meu Perfil</span>
             </DropdownMenuItem>

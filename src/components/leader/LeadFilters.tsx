@@ -131,7 +131,7 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
             <Label>Posição no Negócio</Label>
             <Select 
               value={filters.businessPosition || 'all'} 
-              onValueChange={(v) => updateFilter('businessPosition', v === 'all' ? undefined : v as any)}
+              onValueChange={(v) => updateFilter('businessPosition', v === 'all' ? undefined : v as 'dono' | 'nao_dono')}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todas" />
@@ -207,7 +207,7 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
             <Label>Status de Distribuição</Label>
             <Select 
               value={filters.distributionStatus || 'all'} 
-              onValueChange={(v) => updateFilter('distributionStatus', v as any)}
+              onValueChange={(v) => updateFilter('distributionStatus', v as 'distributed' | 'not_distributed' | 'all')}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Todos" />

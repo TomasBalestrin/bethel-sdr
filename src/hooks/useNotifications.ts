@@ -13,7 +13,7 @@ export interface Notification {
   message: string;
   type: 'info' | 'success' | 'warning' | 'error';
   read: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
@@ -26,7 +26,7 @@ function toNotification(row: NotificationRow): Notification {
     message: row.message,
     type: (row.type as Notification['type']) || 'info',
     read: row.read ?? false,
-    metadata: (row.metadata as Record<string, any>) || {},
+    metadata: (row.metadata as Record<string, unknown>) || {},
     created_at: row.created_at,
   };
 }

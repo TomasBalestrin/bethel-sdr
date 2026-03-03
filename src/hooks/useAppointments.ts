@@ -1,8 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Appointment, AppointmentStatus, AppointmentWithRelations } from '@/types/database';
+import type { Appointment, AppointmentStatus } from '@/types/database';
 import { toast } from 'sonner';
 import { syncGoogleCalendar, buildEventData } from '@/lib/googleCalendarSync';
+
+interface JoinedLeadInfo {
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  niche: string | null;
+  revenue: number | null;
+  main_pain: string | null;
+}
+
+interface JoinedCloserInfo {
+  email: string;
+}
 
 interface AppointmentsFilters {
   closerId?: string;
@@ -204,7 +217,8 @@ export function useRescheduleAppointment() {
 
       // Sync with Google Calendar
       if (current?.lead) {
-        const lead = current.lead as any;
+        const lead = current.lead as JoinedLeadInfo;
+        const closer = current.closer as JoinedCloserInfo | null;
         const eventData = buildEventData({
           leadName: lead.full_name,
           leadPhone: lead.phone,
@@ -220,7 +234,7 @@ export function useRescheduleAppointment() {
         syncGoogleCalendar({
           action: 'update',
           appointmentId: id,
-          closerEmail: (current.closer as any)?.email,
+          closerEmail: closer?.email,
           eventData,
         });
       }
@@ -358,16 +372,17 @@ export function useReassignAppointment() {
 
       // Delete event from old closer's calendar
       if (current?.closer) {
+        const oldCloser = current.closer as JoinedCloserInfo;
         syncGoogleCalendar({
           action: 'delete',
           appointmentId,
-          closerEmail: (current.closer as any)?.email,
+          closerEmail: oldCloser.email,
         });
       }
 
       // Create event in new closer's calendar
       if (current?.lead && newCloser) {
-        const lead = current.lead as any;
+        const lead = current.lead as JoinedLeadInfo;
         const eventData = buildEventData({
           leadName: lead.full_name,
           leadPhone: lead.phone,

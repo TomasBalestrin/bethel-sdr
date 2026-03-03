@@ -22,6 +22,7 @@ import {
 } from '@/hooks/useQualificationRules';
 import { useFunnels } from '@/hooks/useFunnels';
 import { ClassificationBadge } from '@/components/shared/StatusBadge';
+import type { RuleCondition, LeadClassification } from '@/types/database';
 
 const OPERATOR_LABELS: Record<string, string> = {
   equals: '=',
@@ -69,7 +70,7 @@ export function QualificationRulesTab() {
     setRuleToDelete(null);
   };
 
-  const formatConditions = (conditions: any[]) => {
+  const formatConditions = (conditions: RuleCondition[]) => {
     if (!conditions || conditions.length === 0) return 'Sem condições';
     return conditions.map((c, i) => (
       <span key={i} className="inline-flex items-center gap-1 text-xs">
@@ -170,7 +171,7 @@ export function QualificationRulesTab() {
                         <div className="flex flex-col gap-1">
                           <span className="text-sm">{rule.qualification_label}</span>
                           {rule.classification && (
-                            <ClassificationBadge classification={rule.classification as any} />
+                            <ClassificationBadge classification={rule.classification as LeadClassification} />
                           )}
                         </div>
                       </TableCell>
