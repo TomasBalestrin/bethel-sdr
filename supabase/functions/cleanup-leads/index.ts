@@ -179,6 +179,43 @@ Deno.serve(async (req) => {
     // Get environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+
+    // Authenticate user
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } }
+    })
+    const { data: { user }, error: authError } = await userClient.auth.getUser()
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Token inválido' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Verify user is admin or lider
+    const { data: roleData, error: roleError } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    if (roleError || !roleData || !['admin', 'lider'].includes(roleData.role)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Permissão negada: apenas admin ou líder' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const googleEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL')
     const googlePrivateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
     const spreadsheetId = Deno.env.get('CLEANUP_SPREADSHEET_ID')

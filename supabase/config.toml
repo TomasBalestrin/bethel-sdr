@@ -1,16 +1,16 @@
 project_id = "lxyqqlwbpygeilrriljc"
 
 [functions.admin-create-user]
-verify_jwt = false
+verify_jwt = true
 
 [functions.distribute-leads]
-verify_jwt = false
+verify_jwt = true
 
 [functions.cleanup-leads]
-verify_jwt = false
+verify_jwt = true
 
 [functions.sync-google-calendar]
-verify_jwt = false
+verify_jwt = true
 
 [functions.import-leads-sheet]
-verify_jwt = false
+verify_jwt = true

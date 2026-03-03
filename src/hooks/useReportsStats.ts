@@ -79,14 +79,14 @@ export function useSDRStats(sdrId?: string, dateRange: DateRange = defaultDateRa
 
       const leadIds = leads?.map(l => l.id) || [];
 
-      // Get appointments for these leads
-      let appointmentsData: any[] = [];
+      let appointmentsData: { id: string; converted: boolean | null; conversion_value: number | null; lead_id: string }[] = [];
       if (leadIds.length > 0) {
         const { data, error } = await supabase
           .from('appointments')
           .select('id, converted, conversion_value, lead_id')
           .in('lead_id', leadIds);
-        if (!error) appointmentsData = data || [];
+        if (error) throw error;
+        appointmentsData = data || [];
       }
 
       const leadsAtribuidos = leads?.length || 0;
@@ -165,6 +165,7 @@ export function useCloserStats(closerId?: string, dateRange: DateRange = default
   });
 }
 
+// Optimized: 3 queries total instead of 2*N (N = number of funnels)
 export function useFunnelStats(dateRange: DateRange = defaultDateRange) {
   return useQuery({
     queryKey: ['funnel-stats', dateRange.from, dateRange.to],
@@ -172,54 +173,50 @@ export function useFunnelStats(dateRange: DateRange = defaultDateRange) {
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = endOfDay(dateRange.to).toISOString();
 
-      const { data: funnels, error: funnelsError } = await supabase
-        .from('funnels')
-        .select('id, name')
-        .eq('active', true);
+      // 3 parallel queries instead of 2*N sequential
+      const [funnelsResult, leadsResult, appointmentsResult] = await Promise.all([
+        supabase.from('funnels').select('id, name').eq('active', true),
+        supabase.from('leads').select('id, status, funnel_id')
+          .gte('created_at', startDate).lte('created_at', endDate),
+        supabase.from('appointments').select('id, converted, conversion_value, funnel_id')
+          .gte('scheduled_date', startDate).lte('scheduled_date', endDate),
+      ]);
 
-      if (funnelsError) throw funnelsError;
+      if (funnelsResult.error) throw funnelsResult.error;
+      if (leadsResult.error) throw leadsResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
 
-      const results = await Promise.all(
-        (funnels || []).map(async (funnel) => {
-          const { data: leads } = await supabase
-            .from('leads')
-            .select('id, status')
-            .eq('funnel_id', funnel.id)
-            .gte('created_at', startDate)
-            .lte('created_at', endDate);
+      const funnels = funnelsResult.data || [];
+      const allLeads = leadsResult.data || [];
+      const allAppointments = appointmentsResult.data || [];
 
-          const { data: appointments } = await supabase
-            .from('appointments')
-            .select('id, converted, conversion_value')
-            .eq('funnel_id', funnel.id)
-            .gte('scheduled_date', startDate)
-            .lte('scheduled_date', endDate);
+      return funnels.map((funnel) => {
+        const leads = allLeads.filter(l => l.funnel_id === funnel.id);
+        const appointments = allAppointments.filter(a => a.funnel_id === funnel.id);
 
-          const leadsCount = leads?.length || 0;
-          const agendamentos = appointments?.length || 0;
-          const conversoes = appointments?.filter(a => a.converted).length || 0;
-          const valorGerado = appointments
-            ?.filter(a => a.converted && a.conversion_value)
-            .reduce((sum, a) => sum + Number(a.conversion_value), 0) || 0;
+        const leadsCount = leads.length;
+        const agendamentos = appointments.length;
+        const conversoes = appointments.filter(a => a.converted).length;
+        const valorGerado = appointments
+          .filter(a => a.converted && a.conversion_value)
+          .reduce((sum, a) => sum + Number(a.conversion_value), 0);
 
-          return {
-            id: funnel.id,
-            name: funnel.name,
-            leads: leadsCount,
-            agendamentos,
-            conversoes,
-            valorGerado,
-            taxaAgendamento: leadsCount > 0 ? (agendamentos / leadsCount) * 100 : 0,
-            taxaConversao: agendamentos > 0 ? (conversoes / agendamentos) * 100 : 0,
-          };
-        })
-      );
-
-      return results;
+        return {
+          id: funnel.id,
+          name: funnel.name,
+          leads: leadsCount,
+          agendamentos,
+          conversoes,
+          valorGerado,
+          taxaAgendamento: leadsCount > 0 ? (agendamentos / leadsCount) * 100 : 0,
+          taxaConversao: agendamentos > 0 ? (conversoes / agendamentos) * 100 : 0,
+        };
+      });
     },
   });
 }
 
+// Optimized: 4 queries total instead of 2*N+2 (N = number of SDRs)
 export function useSDRRankings(dateRange: DateRange = defaultDateRange) {
   return useQuery({
     queryKey: ['sdr-rankings', dateRange.from, dateRange.to],
@@ -227,46 +224,50 @@ export function useSDRRankings(dateRange: DateRange = defaultDateRange) {
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = endOfDay(dateRange.to).toISOString();
 
-      // Get all SDRs
-      const { data: sdrRoles } = await supabase
+      // Get SDR profiles
+      const { data: sdrRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id')
         .eq('role', 'sdr');
+      if (rolesError) throw rolesError;
 
       const sdrIds = sdrRoles?.map(r => r.user_id) || [];
+      if (sdrIds.length === 0) return { byAgendamento: [], byConversao: [] };
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, name')
-        .in('user_id', sdrIds)
-        .eq('active', true);
+      // 3 parallel queries for all data
+      const [profilesResult, leadsResult, appointmentsResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, name').in('user_id', sdrIds).eq('active', true),
+        supabase.from('leads').select('id, status, assigned_sdr_id')
+          .in('assigned_sdr_id', sdrIds)
+          .gte('created_at', startDate).lte('created_at', endDate),
+        supabase.from('appointments').select('id, converted, lead_id')
+          .gte('created_at', startDate).lte('created_at', endDate),
+      ]);
+
+      if (profilesResult.error) throw profilesResult.error;
+      if (leadsResult.error) throw leadsResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
+
+      const profiles = profilesResult.data || [];
+      const allLeads = leadsResult.data || [];
+      const allAppointments = appointmentsResult.data || [];
+
+      // Build lead-to-sdr lookup for appointment matching
+      const leadToSdr = new Map(allLeads.map(l => [l.id, l.assigned_sdr_id]));
 
       const rankings: { byAgendamento: RankingEntry[]; byConversao: RankingEntry[] } = {
         byAgendamento: [],
         byConversao: [],
       };
 
-      for (const profile of profiles || []) {
-        const { data: leads } = await supabase
-          .from('leads')
-          .select('id, status')
-          .eq('assigned_sdr_id', profile.user_id)
-          .gte('created_at', startDate)
-          .lte('created_at', endDate);
+      for (const profile of profiles) {
+        const leads = allLeads.filter(l => l.assigned_sdr_id === profile.user_id);
+        const leadIds = new Set(leads.map(l => l.id));
+        const sdrAppointments = allAppointments.filter(a => a.lead_id && leadIds.has(a.lead_id));
+        const conversoes = sdrAppointments.filter(a => a.converted).length;
 
-        const leadIds = leads?.map(l => l.id) || [];
-        let conversoes = 0;
-
-        if (leadIds.length > 0) {
-          const { data: appointments } = await supabase
-            .from('appointments')
-            .select('id, converted')
-            .in('lead_id', leadIds);
-          conversoes = appointments?.filter(a => a.converted).length || 0;
-        }
-
-        const leadsCount = leads?.length || 0;
-        const agendados = leads?.filter(l => l.status === 'agendado').length || 0;
+        const leadsCount = leads.length;
+        const agendados = leads.filter(l => l.status === 'agendado').length;
         const taxaAgendamento = leadsCount > 0 ? (agendados / leadsCount) * 100 : 0;
 
         rankings.byAgendamento.push({
@@ -292,6 +293,7 @@ export function useSDRRankings(dateRange: DateRange = defaultDateRange) {
   });
 }
 
+// Optimized: 3 queries total instead of N+2 (N = number of closers)
 export function useCloserRankings(dateRange: DateRange = defaultDateRange) {
   return useQuery({
     queryKey: ['closer-rankings', dateRange.from, dateRange.to],
@@ -299,39 +301,41 @@ export function useCloserRankings(dateRange: DateRange = defaultDateRange) {
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = endOfDay(dateRange.to).toISOString();
 
-      // Get all Closers
-      const { data: closerRoles } = await supabase
+      const { data: closerRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id')
         .eq('role', 'closer');
+      if (rolesError) throw rolesError;
 
       const closerIds = closerRoles?.map(r => r.user_id) || [];
+      if (closerIds.length === 0) return { byConversao: [], byValor: [] };
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, name')
-        .in('user_id', closerIds)
-        .eq('active', true);
+      const [profilesResult, appointmentsResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, name').in('user_id', closerIds).eq('active', true),
+        supabase.from('appointments').select('id, status, converted, conversion_value, closer_id')
+          .in('closer_id', closerIds)
+          .gte('scheduled_date', startDate).lte('scheduled_date', endDate),
+      ]);
+
+      if (profilesResult.error) throw profilesResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
+
+      const profiles = profilesResult.data || [];
+      const allAppointments = appointmentsResult.data || [];
 
       const rankings: { byConversao: RankingEntry[]; byValor: RankingEntry[] } = {
         byConversao: [],
         byValor: [],
       };
 
-      for (const profile of profiles || []) {
-        const { data: appointments } = await supabase
-          .from('appointments')
-          .select('id, status, converted, conversion_value')
-          .eq('closer_id', profile.user_id)
-          .gte('scheduled_date', startDate)
-          .lte('scheduled_date', endDate);
-
-        const realizadas = appointments?.filter(a => a.status === 'realizado').length || 0;
-        const conversoes = appointments?.filter(a => a.converted).length || 0;
+      for (const profile of profiles) {
+        const appointments = allAppointments.filter(a => a.closer_id === profile.user_id);
+        const realizadas = appointments.filter(a => a.status === 'realizado').length;
+        const conversoes = appointments.filter(a => a.converted).length;
         const taxaConversao = realizadas > 0 ? (conversoes / realizadas) * 100 : 0;
         const valorTotal = appointments
-          ?.filter(a => a.converted && a.conversion_value)
-          .reduce((sum, a) => sum + Number(a.conversion_value), 0) || 0;
+          .filter(a => a.converted && a.conversion_value)
+          .reduce((sum, a) => sum + Number(a.conversion_value), 0);
 
         rankings.byConversao.push({
           id: profile.user_id,
@@ -356,6 +360,7 @@ export function useCloserRankings(dateRange: DateRange = defaultDateRange) {
   });
 }
 
+// Optimized: 4 queries total instead of 2*N+2 (N = number of SDRs)
 export function useAllSDRsPerformance(dateRange: DateRange = defaultDateRange) {
   return useQuery({
     queryKey: ['all-sdrs-performance', dateRange.from, dateRange.to],
@@ -363,53 +368,50 @@ export function useAllSDRsPerformance(dateRange: DateRange = defaultDateRange) {
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = endOfDay(dateRange.to).toISOString();
 
-      const { data: sdrRoles } = await supabase
+      const { data: sdrRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id')
         .eq('role', 'sdr');
+      if (rolesError) throw rolesError;
 
       const sdrIds = sdrRoles?.map(r => r.user_id) || [];
+      if (sdrIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, name')
-        .in('user_id', sdrIds)
-        .eq('active', true);
+      const [profilesResult, leadsResult, appointmentsResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, name').in('user_id', sdrIds).eq('active', true),
+        supabase.from('leads').select('id, status, assigned_sdr_id')
+          .in('assigned_sdr_id', sdrIds)
+          .gte('created_at', startDate).lte('created_at', endDate),
+        supabase.from('appointments').select('id, converted, lead_id')
+          .gte('created_at', startDate).lte('created_at', endDate),
+      ]);
 
-      const performance = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          const { data: leads } = await supabase
-            .from('leads')
-            .select('id, status')
-            .eq('assigned_sdr_id', profile.user_id)
-            .gte('created_at', startDate)
-            .lte('created_at', endDate);
+      if (profilesResult.error) throw profilesResult.error;
+      if (leadsResult.error) throw leadsResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
 
-          const leadIds = leads?.map(l => l.id) || [];
-          let conversoes = 0;
+      const profiles = profilesResult.data || [];
+      const allLeads = leadsResult.data || [];
+      const allAppointments = appointmentsResult.data || [];
 
-          if (leadIds.length > 0) {
-            const { data: appointments } = await supabase
-              .from('appointments')
-              .select('id, converted')
-              .in('lead_id', leadIds);
-            conversoes = appointments?.filter(a => a.converted).length || 0;
-          }
+      return profiles.map((profile) => {
+        const leads = allLeads.filter(l => l.assigned_sdr_id === profile.user_id);
+        const leadIds = new Set(leads.map(l => l.id));
+        const sdrAppointments = allAppointments.filter(a => a.lead_id && leadIds.has(a.lead_id));
+        const conversoes = sdrAppointments.filter(a => a.converted).length;
 
-          return {
-            name: profile.name,
-            atribuidos: leads?.length || 0,
-            agendados: leads?.filter(l => l.status === 'agendado').length || 0,
-            convertidos: conversoes,
-          };
-        })
-      );
-
-      return performance;
+        return {
+          name: profile.name,
+          atribuidos: leads.length,
+          agendados: leads.filter(l => l.status === 'agendado').length,
+          convertidos: conversoes,
+        };
+      });
     },
   });
 }
 
+// Optimized: 3 queries total instead of N+2 (N = number of closers)
 export function useAllClosersPerformance(dateRange: DateRange = defaultDateRange) {
   return useQuery({
     queryKey: ['all-closers-performance', dateRange.from, dateRange.to],
@@ -417,41 +419,41 @@ export function useAllClosersPerformance(dateRange: DateRange = defaultDateRange
       const startDate = startOfDay(dateRange.from).toISOString();
       const endDate = endOfDay(dateRange.to).toISOString();
 
-      const { data: closerRoles } = await supabase
+      const { data: closerRoles, error: rolesError } = await supabase
         .from('user_roles')
         .select('user_id')
         .eq('role', 'closer');
+      if (rolesError) throw rolesError;
 
       const closerIds = closerRoles?.map(r => r.user_id) || [];
+      if (closerIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, name')
-        .in('user_id', closerIds)
-        .eq('active', true);
+      const [profilesResult, appointmentsResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, name').in('user_id', closerIds).eq('active', true),
+        supabase.from('appointments').select('id, status, converted, conversion_value, closer_id')
+          .in('closer_id', closerIds)
+          .gte('scheduled_date', startDate).lte('scheduled_date', endDate),
+      ]);
 
-      const performance = await Promise.all(
-        (profiles || []).map(async (profile) => {
-          const { data: appointments } = await supabase
-            .from('appointments')
-            .select('id, status, converted, conversion_value')
-            .eq('closer_id', profile.user_id)
-            .gte('scheduled_date', startDate)
-            .lte('scheduled_date', endDate);
+      if (profilesResult.error) throw profilesResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
 
-          return {
-            name: profile.name,
-            agendadas: appointments?.length || 0,
-            realizadas: appointments?.filter(a => a.status === 'realizado').length || 0,
-            conversoes: appointments?.filter(a => a.converted).length || 0,
-            valor: appointments
-              ?.filter(a => a.converted && a.conversion_value)
-              .reduce((sum, a) => sum + Number(a.conversion_value), 0) || 0,
-          };
-        })
-      );
+      const profiles = profilesResult.data || [];
+      const allAppointments = appointmentsResult.data || [];
 
-      return performance;
+      return profiles.map((profile) => {
+        const appointments = allAppointments.filter(a => a.closer_id === profile.user_id);
+
+        return {
+          name: profile.name,
+          agendadas: appointments.length,
+          realizadas: appointments.filter(a => a.status === 'realizado').length,
+          conversoes: appointments.filter(a => a.converted).length,
+          valor: appointments
+            .filter(a => a.converted && a.conversion_value)
+            .reduce((sum, a) => sum + Number(a.conversion_value), 0),
+        };
+      });
     },
   });
 }

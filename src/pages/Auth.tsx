@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Loader2, Calendar, Users, BarChart3, Mail, Lock, UserCircle, CheckCircle } from 'lucide-react';
 import { z } from 'zod';
 import logoImg from '@/assets/logo.png';
@@ -51,7 +51,6 @@ const features = [
 
 export default function Auth() {
   const { user, signIn, signUp, loading } = useAuth();
-  const { toast } = useToast();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
 
@@ -74,11 +73,7 @@ export default function Auth() {
     setErrors({});
 
     if (isLockedOut) {
-      toast({
-        title: 'Conta bloqueada',
-        description: 'Aguarde 15 minutos antes de tentar novamente.',
-        variant: 'destructive',
-      });
+      toast.error('Conta bloqueada: Aguarde 15 minutos antes de tentar novamente.');
       return;
     }
 
@@ -107,24 +102,13 @@ export default function Auth() {
 
       if (newAttempts >= 5) {
         setLockoutUntil(new Date(Date.now() + 15 * 60 * 1000));
-        toast({
-          title: 'Conta bloqueada',
-          description: 'Muitas tentativas falhas. Aguarde 15 minutos.',
-          variant: 'destructive',
-        });
+        toast.error('Conta bloqueada: Muitas tentativas falhas. Aguarde 15 minutos.');
       } else {
-        toast({
-          title: 'Erro ao entrar',
-          description: 'Email ou senha incorretos.',
-          variant: 'destructive',
-        });
+        toast.error('Erro ao entrar: Email ou senha incorretos.');
       }
     } else {
       setFailedAttempts(0);
-      toast({
-        title: 'Bem-vindo!',
-        description: 'Login realizado com sucesso.',
-      });
+      toast.success('Bem-vindo! Login realizado com sucesso.');
     }
 
     setIsSubmitting(false);
@@ -155,23 +139,12 @@ export default function Auth() {
 
     if (error) {
       if (error.message.includes('already registered')) {
-        toast({
-          title: 'Erro ao cadastrar',
-          description: 'Este email já está cadastrado.',
-          variant: 'destructive',
-        });
+        toast.error('Erro ao cadastrar: Este email já está cadastrado.');
       } else {
-        toast({
-          title: 'Erro ao cadastrar',
-          description: error.message,
-          variant: 'destructive',
-        });
+        toast.error('Erro ao cadastrar: ' + error.message);
       }
     } else {
-      toast({
-        title: 'Cadastro realizado!',
-        description: 'Sua conta foi criada com sucesso.',
-      });
+      toast.success('Cadastro realizado! Sua conta foi criada com sucesso.');
     }
 
     setIsSubmitting(false);
