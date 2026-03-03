@@ -120,7 +120,7 @@ export function ImportCSVModal({ open, onOpenChange }: ImportCSVModalProps) {
     }
 
     const leads = csvData.map(row => {
-      const lead: Record<string, any> = {};
+      const lead: Record<string, string | number | null> = {};
       Object.entries(columnMapping).forEach(([systemField, csvColumn]) => {
         const columnIndex = csvHeaders.indexOf(csvColumn);
         if (columnIndex !== -1 && row[columnIndex]) {

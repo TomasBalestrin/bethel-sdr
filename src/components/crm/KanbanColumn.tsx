@@ -32,22 +32,23 @@ export function KanbanColumn({ column, leads, onLeadClick }: KanbanColumnProps) 
                           column.name.toLowerCase() === 'agendados';
 
   return (
-    <div className="flex-shrink-0 w-80 flex flex-col">
+    <div className="flex-shrink-0 w-80 flex flex-col" role="region" aria-label={`Coluna ${column.name}`}>
       {/* Column Header */}
       <div className="flex items-center gap-3 mb-4 px-2">
-        <div 
+        <div
           className="relative"
+          aria-hidden="true"
         >
           <div
             className="w-3 h-3 rounded-full ring-4"
-            style={{ 
+            style={{
               backgroundColor: column.color,
               boxShadow: `0 0 0 4px ${column.color}20`
             }}
           />
         </div>
-        <h3 className="font-semibold text-foreground tracking-tight">{column.name}</h3>
-        <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full ml-auto">
+        <h3 className="font-semibold text-foreground tracking-tight" id={`col-${column.id}`}>{column.name}</h3>
+        <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-full ml-auto" aria-label={`${leads.length} leads`}>
           {leads.length}
         </span>
       </div>
@@ -84,9 +85,9 @@ export function KanbanColumn({ column, leads, onLeadClick }: KanbanColumnProps) 
                 )
               ))
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                  <span 
+              <div className="flex flex-col items-center justify-center py-12 text-center" role="status">
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3" aria-hidden="true">
+                  <span
                     className="w-4 h-4 rounded-full opacity-40"
                     style={{ backgroundColor: column.color }}
                   />

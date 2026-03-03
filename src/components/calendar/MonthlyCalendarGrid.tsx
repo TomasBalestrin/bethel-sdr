@@ -6,9 +6,9 @@ import { ClassificationBadge } from '@/components/shared/StatusBadge';
 
 interface MonthlyCalendarGridProps {
   currentDate: Date;
-  appointments: any[];
+  appointments: AppointmentWithRelations[];
   onDayClick?: (date: Date) => void;
-  onAppointmentClick?: (appointment: any) => void;
+  onAppointmentClick?: (appointment: AppointmentWithRelations) => void;
 }
 
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
@@ -34,12 +34,13 @@ export function MonthlyCalendarGrid({
   };
 
   return (
-    <div className="bg-card border rounded-lg overflow-hidden">
+    <div className="bg-card border rounded-lg overflow-hidden" role="grid" aria-label="Calendário mensal de agendamentos">
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 bg-muted/50">
+      <div className="grid grid-cols-7 bg-muted/50" role="row">
         {WEEKDAYS.map((day) => (
           <div
             key={day}
+            role="columnheader"
             className="px-2 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider border-b"
           >
             {day}
@@ -48,7 +49,7 @@ export function MonthlyCalendarGrid({
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7">
+      <div className="grid grid-cols-7" role="rowgroup">
         {days.map((day, index) => {
           const dayAppointments = getAppointmentsForDay(day);
           const isCurrentMonth = isSameMonth(day, currentDate);
@@ -57,6 +58,8 @@ export function MonthlyCalendarGrid({
           return (
             <div
               key={day.toISOString()}
+              role="gridcell"
+              aria-label={`${format(day, "dd 'de' MMMM", { locale: ptBR })}${dayAppointments.length > 0 ? `, ${dayAppointments.length} agendamentos` : ''}`}
               onClick={() => onDayClick?.(day)}
               className={cn(
                 'min-h-[100px] p-1 border-b border-r cursor-pointer transition-colors hover:bg-muted/30',

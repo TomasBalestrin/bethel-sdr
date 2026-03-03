@@ -195,7 +195,7 @@ export function CleanupConfigTab() {
                   {logs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="font-medium">
-                        {(log.lead_data as any)?.full_name || 'Lead removido'}
+                        {(log.lead_data as Record<string, unknown>)?.full_name as string || 'Lead removido'}
                       </TableCell>
                       <TableCell>{getReasonBadge(log.cleanup_reason)}</TableCell>
                       <TableCell>{formatDate(log.cleaned_at)}</TableCell>

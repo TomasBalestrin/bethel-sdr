@@ -15,6 +15,7 @@ import { ptBR } from 'date-fns/locale';
 import { ImportCSVModal } from '@/components/leads/ImportCSVModal';
 import { LeadDetailsSheet } from '@/components/leads/LeadDetailsSheet';
 import { Database } from '@/integrations/supabase/types';
+import type { LeadStatus, LeadClassification } from '@/types/database';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
 
@@ -34,8 +35,8 @@ export default function Leads() {
 
   const { data: leads, isLoading } = useLeads({ 
     search: search || undefined,
-    status: statusFilter ? [statusFilter as any] : undefined,
-    classification: classificationFilter ? [classificationFilter as any] : undefined,
+    status: statusFilter ? [statusFilter as LeadStatus] : undefined,
+    classification: classificationFilter ? [classificationFilter as LeadClassification] : undefined,
     funnelId: funnelFilter || undefined,
   });
   const { data: funnels } = useFunnels();

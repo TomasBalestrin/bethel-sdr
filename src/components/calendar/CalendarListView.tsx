@@ -6,12 +6,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AppointmentStatusBadge } from '@/components/shared/StatusBadge';
 import { cn } from '@/lib/utils';
+import type { AppointmentStatus } from '@/types/database';
 
 interface Appointment {
   id: string;
   scheduled_date: string;
   duration: number;
-  status: string;
+  status: AppointmentStatus;
   lead?: {
     id: string;
     full_name: string;
@@ -173,7 +174,7 @@ export function CalendarListView({ appointments, onAppointmentClick }: CalendarL
                       )}
 
                       {/* Status */}
-                      <AppointmentStatusBadge status={appointment.status as any} />
+                      <AppointmentStatusBadge status={appointment.status} />
 
                       {/* Arrow */}
                       <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import type { QualificationRule, RuleCondition } from '@/types/database';
+import type { QualificationRule, RuleCondition, LeadClassification } from '@/types/database';
 
 export interface QualificationRuleWithFunnel extends Omit<QualificationRule, 'conditions'> {
   conditions: RuleCondition[];
@@ -79,7 +79,7 @@ export function useCreateQualificationRule() {
           funnel_id: rule.funnel_id,
           conditions: JSON.stringify(rule.conditions),
           qualification_label: rule.qualification_label,
-          classification: rule.classification as any,
+          classification: rule.classification as LeadClassification | null,
           priority: rule.priority,
           active: rule.active,
         })
@@ -108,7 +108,7 @@ export function useUpdateQualificationRule() {
         .from('qualification_rules')
         .update({
           ...updates,
-          conditions: updates.conditions as any,
+          conditions: updates.conditions ? JSON.stringify(updates.conditions) : undefined,
         })
         .eq('id', id)
         .select()

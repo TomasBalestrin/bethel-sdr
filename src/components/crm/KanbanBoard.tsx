@@ -18,10 +18,12 @@ import { useMoveLeadColumn } from '@/hooks/useMoveLeadColumn';
 import { useAuth } from '@/hooks/useAuth';
 import { Database } from '@/integrations/supabase/types';
 
-type Lead = Database['public']['Tables']['leads']['Row'] & {
+export type KanbanLead = Database['public']['Tables']['leads']['Row'] & {
   funnel?: { name: string } | null;
   assigned_sdr?: { name: string } | null;
 };
+
+type Lead = KanbanLead;
 
 type CRMColumn = Database['public']['Tables']['crm_columns']['Row'];
 
@@ -139,7 +141,7 @@ export function KanbanBoard({ columns, leads }: KanbanBoardProps) {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-4 overflow-x-auto pb-4 h-full">
+        <div className="flex gap-4 overflow-x-auto pb-4 h-full" role="region" aria-label="Quadro Kanban CRM">
           {/* Unassigned leads column */}
           {leadsByColumn['unassigned']?.length > 0 && (
             <div className="flex-shrink-0 w-72 flex flex-col">

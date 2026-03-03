@@ -4,7 +4,7 @@ import { useCRMColumns } from '@/hooks/useCRMColumns';
 import { useLeads } from '@/hooks/useLeads';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { KanbanBoard } from '@/components/crm/KanbanBoard';
+import { KanbanBoard, type KanbanLead } from '@/components/crm/KanbanBoard';
 
 export default function CRM() {
   const { data: columns, isLoading: columnsLoading } = useCRMColumns();
@@ -31,7 +31,7 @@ export default function CRM() {
         ) : columns && columns.length > 0 ? (
           <KanbanBoard 
             columns={columns} 
-            leads={(leads || []) as any} 
+            leads={(leads || []) as KanbanLead[]}
           />
         ) : (
           <EmptyState

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, Workflow, Columns, Pencil, Trash2, Plus, Share2, Scale } from 'lucide-react';
+import { Users, Workflow, Columns, Pencil, Trash2, Plus, Share2, Scale, Clock, FileText, Tag } from 'lucide-react';
 import { SyncStatusPanel } from '@/components/admin/SyncStatusPanel';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,9 @@ import { CRMColumnFormModal } from '@/components/admin/CRMColumnFormModal';
 import { DistributionRulesTab } from '@/components/admin/DistributionRulesTab';
 import { QualificationRulesTab } from '@/components/admin/QualificationRulesTab';
 import { CleanupConfigTab } from '@/components/admin/CleanupConfigTab';
+import { CloserAvailabilityTab } from '@/components/admin/CloserAvailabilityTab';
+import { ActivityLogsTab } from '@/components/admin/ActivityLogsTab';
+import { NichesTab } from '@/components/admin/NichesTab';
 import type { ProfileWithRole, Funnel, CrmColumn } from '@/types/database';
 
 export default function Admin() {
@@ -130,6 +133,18 @@ export default function Admin() {
             <TabsTrigger value="cleanup" className="gap-2">
               <Trash2 className="h-4 w-4" />
               Limpeza
+            </TabsTrigger>
+            <TabsTrigger value="availability" className="gap-2">
+              <Clock className="h-4 w-4" />
+              Disponibilidade
+            </TabsTrigger>
+            <TabsTrigger value="niches" className="gap-2">
+              <Tag className="h-4 w-4" />
+              Nichos
+            </TabsTrigger>
+            <TabsTrigger value="logs" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Logs
             </TabsTrigger>
           </TabsList>
 
@@ -350,6 +365,21 @@ export default function Admin() {
           {/* Cleanup Tab */}
           <TabsContent value="cleanup">
             <CleanupConfigTab />
+          </TabsContent>
+
+          {/* Closer Availability Tab */}
+          <TabsContent value="availability">
+            <CloserAvailabilityTab />
+          </TabsContent>
+
+          {/* Niches Tab */}
+          <TabsContent value="niches">
+            <NichesTab />
+          </TabsContent>
+
+          {/* Activity Logs Tab */}
+          <TabsContent value="logs">
+            <ActivityLogsTab />
           </TabsContent>
         </Tabs>
       </div>

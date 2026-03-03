@@ -14,13 +14,14 @@ import { MonthlyCalendarGrid } from '@/components/calendar/MonthlyCalendarGrid';
 import { CalendarListView } from '@/components/calendar/CalendarListView';
 import { CloserMultiSelect } from '@/components/calendar/CloserMultiSelect';
 import { AppointmentDetailsModal } from '@/components/calendar/AppointmentDetailsModal';
+import type { AppointmentWithRelations } from '@/types/database';
 
 type ViewMode = 'weekly' | 'monthly';
 
 export default function Calendario() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedCloserIds, setSelectedCloserIds] = useState<string[]>([]);
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('weekly');
 
@@ -51,7 +52,7 @@ export default function Calendario() {
     closerIds: selectedCloserIds.length > 0 ? selectedCloserIds : undefined,
   });
 
-  const handleAppointmentClick = (appointment: any) => {
+  const handleAppointmentClick = (appointment: AppointmentWithRelations) => {
     setSelectedAppointment(appointment);
     setModalOpen(true);
   };

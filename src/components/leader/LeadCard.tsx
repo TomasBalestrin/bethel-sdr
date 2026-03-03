@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ClassificationBadge } from '@/components/shared/StatusBadge';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { LeadWithDetails } from '@/hooks/useLeaderDashboard';
+import type { LeadClassification } from '@/types/database';
 
 interface LeadCardProps {
   lead: LeadWithDetails;
@@ -88,7 +89,7 @@ export function LeadCard({ lead, onClick }: LeadCardProps) {
         {/* Classification and Status */}
         <div className="flex items-center gap-2 flex-wrap">
           {lead.classification && (
-            <ClassificationBadge classification={lead.classification as any} />
+            <ClassificationBadge classification={lead.classification as LeadClassification} />
           )}
           {lead.niche && (
             <Badge variant="outline" className="text-xs">

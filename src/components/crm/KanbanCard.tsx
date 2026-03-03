@@ -53,9 +53,14 @@ export function KanbanCard({ lead, onClick }: KanbanCardProps) {
       {...attributes}
       {...listeners}
       onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label={`Lead ${lead.full_name}${lead.classification ? `, classificação ${lead.classification}` : ''}`}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       className={cn(
         'group bg-card border border-border/50 rounded-xl p-3.5 cursor-grab active:cursor-grabbing transition-all duration-200',
         'hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
         isDragging && 'opacity-50 shadow-xl rotate-2 scale-105'
       )}
     >
