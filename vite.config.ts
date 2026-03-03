@@ -18,4 +18,31 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react-dom') || id.includes('react-router')) {
+              return 'vendor-react';
+            }
+            if (id.includes('@radix-ui') || id.includes('lucide-react')) {
+              return 'vendor-ui';
+            }
+            if (id.includes('@tanstack/react-query')) {
+              return 'vendor-query';
+            }
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('@react-pdf') || id.includes('xlsx')) {
+              return 'vendor-export';
+            }
+          }
+        },
+      },
+    },
+  },
 }));

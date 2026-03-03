@@ -74,25 +74,29 @@ export function useSDRStats(sdrId?: string, dateRange: DateRange = defaultDateRa
         leadsQuery = leadsQuery.eq('assigned_sdr_id', sdrId);
       }
 
-      const { data: leads, error: leadsError } = await leadsQuery;
-      if (leadsError) throw leadsError;
+      // Parallel fetch: leads + appointments by date range
+      const appointmentsQuery = supabase
+        .from('appointments')
+        .select('id, converted, conversion_value, lead_id')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
 
-      const leadIds = leads?.map(l => l.id) || [];
+      const [leadsResult, appointmentsResult] = await Promise.all([
+        leadsQuery,
+        appointmentsQuery,
+      ]);
 
-      let appointmentsData: { id: string; converted: boolean | null; conversion_value: number | null; lead_id: string }[] = [];
-      if (leadIds.length > 0) {
-        const { data, error } = await supabase
-          .from('appointments')
-          .select('id, converted, conversion_value, lead_id')
-          .in('lead_id', leadIds);
-        if (error) throw error;
-        appointmentsData = data || [];
-      }
+      if (leadsResult.error) throw leadsResult.error;
+      if (appointmentsResult.error) throw appointmentsResult.error;
 
-      const leadsAtribuidos = leads?.length || 0;
-      const leadsEmAtendimento = leads?.filter(l => l.status === 'em_atendimento').length || 0;
-      const leadsConcluidos = leads?.filter(l => l.status === 'concluido').length || 0;
-      const leadsAgendados = leads?.filter(l => l.status === 'agendado').length || 0;
+      const leads = leadsResult.data || [];
+      const leadIdSet = new Set(leads.map(l => l.id));
+      const appointmentsData = (appointmentsResult.data || []).filter(a => leadIdSet.has(a.lead_id));
+
+      const leadsAtribuidos = leads.length;
+      const leadsEmAtendimento = leads.filter(l => l.status === 'em_atendimento').length;
+      const leadsConcluidos = leads.filter(l => l.status === 'concluido').length;
+      const leadsAgendados = leads.filter(l => l.status === 'agendado').length;
       const taxaAgendamento = leadsAtribuidos > 0 ? (leadsAgendados / leadsAtribuidos) * 100 : 0;
       const conversoes = appointmentsData.filter(a => a.converted).length;
       const valorGerado = appointmentsData
@@ -100,10 +104,10 @@ export function useSDRStats(sdrId?: string, dateRange: DateRange = defaultDateRa
         .reduce((sum, a) => sum + Number(a.conversion_value), 0);
 
       const classificacaoLeads = {
-        diamante: leads?.filter(l => l.classification === 'diamante').length || 0,
-        ouro: leads?.filter(l => l.classification === 'ouro').length || 0,
-        prata: leads?.filter(l => l.classification === 'prata').length || 0,
-        bronze: leads?.filter(l => l.classification === 'bronze').length || 0,
+        diamante: leads.filter(l => l.classification === 'diamante').length,
+        ouro: leads.filter(l => l.classification === 'ouro').length,
+        prata: leads.filter(l => l.classification === 'prata').length,
+        bronze: leads.filter(l => l.classification === 'bronze').length,
       };
 
       return {

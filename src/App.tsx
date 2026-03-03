@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -24,6 +25,8 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30 * 1000,
       refetchOnWindowFocus: false,
+      retry: 2,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
     },
   },
 });
@@ -43,6 +46,7 @@ const App = () => (
         <TooltipProvider>
           <Sonner />
           <BrowserRouter>
+            <ErrorBoundary>
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
@@ -89,6 +93,7 @@ const App = () => (
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
+            </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

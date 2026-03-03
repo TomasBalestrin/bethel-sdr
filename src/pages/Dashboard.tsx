@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Users, Calendar, TrendingUp, DollarSign } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatsCard } from '@/components/shared/StatsCard';
+import { QueryErrorState } from '@/components/shared/QueryErrorState';
 import { useLeadsStats } from '@/hooks/useLeads';
 import { useAppointmentStats } from '@/hooks/useAppointments';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,10 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 export default function Dashboard() {
   const [period, setPeriod] = useState<string>('30');
-  const { data: leadsStats, isLoading: leadsLoading } = useLeadsStats();
-  const { data: appointmentsStats, isLoading: appointmentsLoading } = useAppointmentStats();
+  const { data: leadsStats, isLoading: leadsLoading, isError: leadsError, refetch: refetchLeads } = useLeadsStats();
+  const { data: appointmentsStats, isLoading: appointmentsLoading, isError: appointmentsError, refetch: refetchAppointments } = useAppointmentStats();
 
   const isLoading = leadsLoading || appointmentsLoading;
+  const isError = leadsError || appointmentsError;
 
   return (
     <AppLayout>
@@ -37,7 +39,9 @@ export default function Dashboard() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <QueryErrorState onRetry={() => { refetchLeads(); refetchAppointments(); }} />
+        ) : isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {[...Array(4)].map((_, i) => (
               <Skeleton key={i} className="h-32" />

@@ -7,22 +7,17 @@ export function useUsers() {
   return useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('name');
+      const [profilesResult, rolesResult] = await Promise.all([
+        supabase.from('profiles').select('*').order('name'),
+        supabase.from('user_roles').select('user_id, role'),
+      ]);
 
-      if (profilesError) throw profilesError;
+      if (profilesResult.error) throw profilesResult.error;
+      if (rolesResult.error) throw rolesResult.error;
 
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      const usersWithRoles: ProfileWithRole[] = profiles.map((profile) => ({
+      const usersWithRoles: ProfileWithRole[] = profilesResult.data.map((profile) => ({
         ...profile,
-        role: roles.find((r) => r.user_id === profile.user_id)?.role as AppRole | undefined,
+        role: rolesResult.data.find((r) => r.user_id === profile.user_id)?.role as AppRole | undefined,
       }));
 
       return usersWithRoles;

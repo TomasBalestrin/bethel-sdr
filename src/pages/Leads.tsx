@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Filter, Users, Upload, MessageCircle } from 'lucide-react';
+import { Search, Filter, Users, Upload, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ClassificationBadge, LeadStatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { QueryErrorState } from '@/components/shared/QueryErrorState';
 import { useLeads, useUpdateLead } from '@/hooks/useLeads';
 import { useFunnels } from '@/hooks/useFunnels';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,13 +33,21 @@ export default function Leads() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 50;
 
-  const { data: leads, isLoading } = useLeads({ 
+  const { data: leadsResult, isLoading, isError, refetch } = useLeads({
     search: search || undefined,
     status: statusFilter ? [statusFilter as LeadStatus] : undefined,
     classification: classificationFilter ? [classificationFilter as LeadClassification] : undefined,
     funnelId: funnelFilter || undefined,
+    page,
+    pageSize,
   });
+
+  const leads = leadsResult?.data;
+  const totalCount = leadsResult?.count ?? 0;
+  const totalPages = Math.ceil(totalCount / pageSize);
   const { data: funnels } = useFunnels();
   const updateLead = useUpdateLead();
 
@@ -60,6 +69,7 @@ export default function Leads() {
     setStatusFilter('');
     setClassificationFilter('');
     setFunnelFilter('');
+    setPage(1);
   };
 
   const hasFilters = statusFilter || classificationFilter || funnelFilter;
@@ -161,69 +171,102 @@ export default function Leads() {
           </Popover>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <QueryErrorState onRetry={() => refetch()} />
+        ) : isLoading ? (
           <div className="space-y-2">
             {[...Array(5)].map((_, i) => (
               <Skeleton key={i} className="h-16 w-full" />
             ))}
           </div>
         ) : leads && leads.length > 0 ? (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Telefone</TableHead>
-                  <TableHead>Classificação</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Funil</TableHead>
-                  <TableHead>Data Formulário</TableHead>
-                  <TableHead>Criado em</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {leads.map((lead) => (
-                  <TableRow 
-                    key={lead.id} 
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => handleRowClick(lead as Lead)}
-                  >
-                    <TableCell className="font-medium">{lead.full_name}</TableCell>
-                    <TableCell>
-                      {lead.phone ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const cleanPhone = lead.phone!.replace(/\D/g, '');
-                            window.open(`https://wa.me/55${cleanPhone}`, '_blank');
-                          }}
-                          className="flex items-center gap-1.5 text-green-600 hover:underline cursor-pointer"
-                        >
-                          <MessageCircle className="h-3.5 w-3.5" />
-                          {lead.phone}
-                        </button>
-                      ) : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {lead.classification && <ClassificationBadge classification={lead.classification} />}
-                    </TableCell>
-                    <TableCell>
-                      <LeadStatusBadge status={lead.status} />
-                    </TableCell>
-                    <TableCell>{(lead as Lead).funnel?.name || '-'}</TableCell>
-                    <TableCell>
-                      {lead.form_filled_at 
-                        ? format(new Date(lead.form_filled_at), 'dd/MM/yyyy', { locale: ptBR })
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(lead.created_at), 'dd/MM/yyyy', { locale: ptBR })}
-                    </TableCell>
+          <>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>Telefone</TableHead>
+                    <TableHead>Classificação</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Funil</TableHead>
+                    <TableHead>Data Formulário</TableHead>
+                    <TableHead>Criado em</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {leads.map((lead) => (
+                    <TableRow
+                      key={lead.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => handleRowClick(lead as Lead)}
+                    >
+                      <TableCell className="font-medium">{lead.full_name}</TableCell>
+                      <TableCell>
+                        {lead.phone ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const cleanPhone = lead.phone!.replace(/\D/g, '');
+                              window.open(`https://wa.me/55${cleanPhone}`, '_blank');
+                            }}
+                            className="flex items-center gap-1.5 text-green-600 hover:underline cursor-pointer"
+                          >
+                            <MessageCircle className="h-3.5 w-3.5" />
+                            {lead.phone}
+                          </button>
+                        ) : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {lead.classification && <ClassificationBadge classification={lead.classification} />}
+                      </TableCell>
+                      <TableCell>
+                        <LeadStatusBadge status={lead.status} />
+                      </TableCell>
+                      <TableCell>{(lead as Lead).funnel?.name || '-'}</TableCell>
+                      <TableCell>
+                        {lead.form_filled_at
+                          ? format(new Date(lead.form_filled_at), 'dd/MM/yyyy', { locale: ptBR })
+                          : '-'}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(lead.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-2 py-3">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {((page - 1) * pageSize) + 1}-{Math.min(page * pageSize, totalCount)} de {totalCount} leads
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    {page} / {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <EmptyState
             icon={Users}
