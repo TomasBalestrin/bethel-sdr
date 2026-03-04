@@ -60,6 +60,22 @@ serve(async (req) => {
       );
     }
 
+    // Get admin's organization
+    const { data: adminProfile, error: profileError } = await userClient
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileError || !adminProfile?.organization_id) {
+      return new Response(
+        JSON.stringify({ error: 'Admin profile or organization not found' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const organizationId = adminProfile.organization_id;
+
     // Parse request body
     const { email, password, name, role, timezone = 'America/Sao_Paulo' } = await req.json();
 
@@ -102,7 +118,7 @@ serve(async (req) => {
       email,
       password,
       email_confirm: true, // Auto-confirm email
-      user_metadata: { name }
+      user_metadata: { name, organization_id: organizationId }
     });
 
     if (createError) {
@@ -117,22 +133,23 @@ serve(async (req) => {
     console.log('User created with ID:', newUserId);
 
     // Create profile
-    const { error: profileError } = await adminClient
+    const { error: profileInsertError } = await adminClient
       .from('profiles')
       .insert({
         user_id: newUserId,
         email,
         name,
         timezone,
-        active: true
+        active: true,
+        organization_id: organizationId
       });
 
-    if (profileError) {
-      console.error('Profile creation error:', profileError);
+    if (profileInsertError) {
+      console.error('Profile creation error:', profileInsertError);
       // Try to delete the user if profile creation fails
       await adminClient.auth.admin.deleteUser(newUserId);
       return new Response(
-        JSON.stringify({ error: 'Failed to create profile: ' + profileError.message }),
+        JSON.stringify({ error: 'Failed to create profile: ' + profileInsertError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

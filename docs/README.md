@@ -1,8 +1,8 @@
 # Bethel SDR — Documentacao do Sistema
 
-**Versao:** 2.0
-**Ultima atualizacao:** 2026-03-03
-**Tipo:** Microsservico de gestao de pipeline de vendas B2B
+**Versao:** 3.0 (Multi-Tenant)
+**Ultima atualizacao:** 2026-03-04
+**Tipo:** Microsservico multi-tenant de gestao de pipeline de vendas B2B
 
 ---
 
@@ -22,6 +22,9 @@ O **Bethel SDR** e um microsservico completo de gestao de pipeline de vendas B2B
 | **Analytics** | Relatorios por SDR, Closer, Funil e Rankings com exportacao CSV/Excel/PDF |
 | **Limpeza Automatizada** | Archiving de leads bronze/nao-fit com backup em Google Sheets |
 | **Notificacoes Real-time** | Via Supabase Realtime para atribuicoes e agendamentos |
+| **Multi-Tenancy** | Isolamento completo por organizacao em todas as 16 tabelas via RLS |
+| **Webhooks** | Notificacoes HTTP para servicos externos com HMAC-SHA256 |
+| **API Keys** | Chaves de acesso para integracao service-to-service |
 
 ### 1.2 Stack Tecnologico
 
@@ -39,7 +42,7 @@ O **Bethel SDR** e um microsservico completo de gestao de pipeline de vendas B2B
 │                SUPABASE BACKEND                       │
 │  Auth: Email/Password (JWT)                          │
 │  Database: PostgreSQL 15 + RLS                       │
-│  Edge Functions: Deno (5 funcoes)                    │
+│  Edge Functions: Deno (6 funcoes)                    │
 │  Realtime: Canais para notificacoes                  │
 │  PostgREST: v14.1 (API automatica)                   │
 ├──────────────────────────────────────────────────────┤
@@ -109,13 +112,14 @@ bethel-sdr/
 │   ├── types/               # Tipos TypeScript do dominio
 │   └── test/                # Testes (Vitest)
 ├── supabase/
-│   ├── migrations/          # 14 migracoes SQL
-│   ├── functions/           # 5 Edge Functions (Deno)
+│   ├── migrations/          # 15 migracoes SQL
+│   ├── functions/           # 6 Edge Functions (Deno)
 │   │   ├── admin-create-user/
 │   │   ├── distribute-leads/
 │   │   ├── cleanup-leads/
 │   │   ├── import-leads-sheet/
-│   │   └── sync-google-calendar/
+│   │   ├── sync-google-calendar/
+│   │   └── webhook-dispatcher/
 │   └── config.toml          # Configuracao (project_id, JWT)
 ├── .env.example             # Template de variaveis de ambiente
 ├── package.json             # Dependencias
@@ -131,9 +135,20 @@ bethel-sdr/
 ### 3.1 Diagrama Entidade-Relacionamento
 
 ```
+organizations
+    │
+    ├──1:N──► profiles
+    ├──1:N──► funnels
+    ├──1:N──► leads
+    ├──1:N──► appointments
+    ├──1:N──► (todas as 15 tabelas de dados)
+    ├──1:N──► webhook_subscriptions
+    ├──1:N──► webhook_logs
+    └──1:N──► api_keys
+
 auth.users (Supabase Auth)
     │
-    ├──1:1──► profiles (nome, email, timezone, active)
+    ├──1:1──► profiles (nome, email, timezone, active, organization_id)
     │              │
     ├──1:1──► user_roles (app_role: admin|lider|sdr|closer)
     │
@@ -158,7 +173,10 @@ Tabelas auxiliares (sem FK para auth.users):
     ├── lead_distribution_logs (historico)
     ├── sdr_capacities (limites por SDR/funil)
     ├── niches (20+ nichos pre-cadastrados)
-    └── cleanup_logs (historico de limpeza)
+    ├── cleanup_logs (historico de limpeza)
+    ├── webhook_subscriptions (webhooks de saida)
+    ├── webhook_logs (historico de entregas)
+    └── api_keys (chaves de integracao)
 ```
 
 ### 3.2 Enums
@@ -189,10 +207,11 @@ novo ──► em_atendimento ──► agendado ──► concluido
 | **sdr** | Leads atribuidos, appointments | Seus leads, criar appointments | `/leads`, `/crm`, `/calendario`, `/perfil` |
 | **closer** | Seus appointments | Registrar resultado de calls | `/calendario`, `/perfil` |
 
-**Seguranca em 3 camadas:**
+**Seguranca em 4 camadas:**
 1. **Frontend:** `ProtectedRoute` com `allowedRoles` por rota
-2. **Banco:** RLS (Row Level Security) em todas as 16 tabelas
-3. **Edge Functions:** Verificacao de token JWT + role check
+2. **Banco:** RLS (Row Level Security) em todas as 19 tabelas com escopo por `organization_id`
+3. **Edge Functions:** Verificacao de token JWT + role check + resolucao de `organization_id`
+4. **Multi-Tenancy:** Funcao `my_org()` em todas as policies garante isolamento entre organizacoes
 
 ---
 
@@ -253,10 +272,11 @@ O Bethel SDR pode ser integrado a um servico maior atraves de:
 | Metodo | Descricao | Documentacao |
 |---|---|---|
 | **PostgREST API** | CRUD completo via REST (auto-gerado pelo Supabase) | `API_CONTRACT.md` |
-| **Edge Functions** | Operacoes complexas (distribuicao, cleanup, import, calendar) | `API_CONTRACT.md` |
+| **Edge Functions** | Operacoes complexas (distribuicao, cleanup, import, calendar, webhooks) | `API_CONTRACT.md` |
 | **Supabase Realtime** | WebSocket para notificacoes em tempo real | `BACKEND.md` |
-| **Webhooks (triggers)** | Notificacoes automaticas ao atribuir lead ou criar appointment | `BACKEND.md` |
+| **Webhooks HTTP** | POST para URLs externas com HMAC-SHA256 signature | `API_CONTRACT.md` |
 | **Auth JWT** | Tokens JWT padrao para autenticacao cross-service | `API_CONTRACT.md` |
+| **API Keys** | Chaves de integracao com permissoes granulares | `API_CONTRACT.md` |
 
 ### 7.2 Dependencias Externas
 

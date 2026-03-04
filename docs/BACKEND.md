@@ -1,10 +1,44 @@
 # Bethel SDR — Backend
 
 **Stack:** Supabase (PostgreSQL 15 + PostgREST 14.1 + Edge Functions Deno + Realtime + Auth)
+**Multi-Tenancy:** Todas as tabelas possuem `organization_id` com RLS via `my_org()`
 
 ---
 
 ## 1. Tabelas do Banco de Dados
+
+> **Nota:** Todas as tabelas de dados possuem coluna `organization_id UUID REFERENCES organizations(id)` com indice.
+> Isso garante isolamento multi-tenant via RLS.
+
+### 1.0 organizations (NOVA)
+
+Tabela central de multi-tenancy.
+
+| Coluna | Tipo | Constraints | Default |
+|---|---|---|---|
+| `id` | UUID | PK | `gen_random_uuid()` |
+| `name` | TEXT | NOT NULL | - |
+| `slug` | TEXT | UNIQUE, NOT NULL | - |
+| `settings` | JSONB | NOT NULL | `{timezone, locale, defaults...}` |
+| `google_service_account_email` | TEXT | - | - |
+| `google_service_account_key_ref` | TEXT | - | - |
+| `cleanup_spreadsheet_id` | TEXT | - | - |
+| `active` | BOOLEAN | NOT NULL | `true` |
+| `created_at` | TIMESTAMPTZ | NOT NULL | `now()` |
+| `updated_at` | TIMESTAMPTZ | NOT NULL | `now()` (auto-trigger) |
+
+**settings JSONB:**
+```json
+{
+  "timezone": "America/Sao_Paulo",
+  "locale": "pt-BR",
+  "default_appointment_duration": 90,
+  "max_leads_per_page": 50,
+  "cleanup_retention_hours": 24
+}
+```
+
+---
 
 ### 1.1 profiles
 
@@ -282,6 +316,20 @@ Audit trail geral. Campos: `action`, `entity_type`, `entity_id`, `details`, `ip_
 #### cleanup_logs
 Historico de limpeza. Inclui `lead_data` JSONB (snapshot completo do lead).
 
+### 1.11 Tabelas de Integracao (NOVAS)
+
+#### webhook_subscriptions
+Subscricoes de webhooks HTTP por organizacao.
+Campos: `organization_id`, `event_type`, `target_url`, `secret`, `headers` (JSONB), `active`.
+
+#### webhook_logs
+Historico de entregas de webhooks.
+Campos: `subscription_id`, `organization_id`, `event_type`, `payload` (JSONB), `response_status`, `response_body`, `delivered`, `attempts`, `last_attempt_at`.
+
+#### api_keys
+Chaves de API para integracao service-to-service.
+Campos: `organization_id`, `name`, `key_hash` (UNIQUE), `key_prefix`, `permissions` (TEXT[]), `active`, `expires_at`, `created_by`.
+
 ---
 
 ## 2. Enums
@@ -389,38 +437,42 @@ Usa `raw_user_meta_data` para extrair `name`, `role` e `timezone`.
 
 ## 6. Edge Functions
 
-Todas as 5 funcoes requerem `verify_jwt = true` (config.toml).
+Todas as 6 funcoes requerem `verify_jwt = true` (config.toml).
+Todas resolvem `organization_id` do perfil do usuario autenticado e escopam queries.
 
 ### 6.1 admin-create-user
 
-**Proposito:** Criar usuario com role pre-definida (apenas admin)
+**Proposito:** Criar usuario com role pre-definida na mesma organizacao do admin
 **Auth:** Bearer JWT + role = admin
-**Tabelas:** auth.users (admin.createUser), profiles (INSERT), user_roles (INSERT)
+**Tabelas:** auth.users (admin.createUser), profiles (INSERT com org_id), user_roles (INSERT)
 **Rollback:** Deleta usuario se profile/role falhar
+**Org-aware:** Novo usuario herda `organization_id` do admin que o criou
 
 ### 6.2 distribute-leads
 
 **Proposito:** Distribuir leads novos para SDRs com round-robin e balanceamento
 **Auth:** Bearer JWT + role = admin/lider
-**Tabelas:** distribution_rules (READ), profiles (READ), leads (READ/UPDATE), lead_distribution_logs (INSERT)
+**Tabelas:** distribution_rules (READ), profiles (READ scoped), leads (READ/UPDATE scoped), lead_distribution_logs (INSERT com org_id)
 **Logica:** Round-robin com workload balancing, suporta dry-run
+**Org-aware:** Filtra SDRs e leads pela organizacao do usuario
 
 ### 6.3 cleanup-leads
 
 **Proposito:** Arquivar leads bronze/nao-fit em Google Sheets e deletar do banco
 **Auth:** Bearer JWT + role = admin/lider
-**Tabelas:** leads (READ/DELETE), cleanup_logs (INSERT)
+**Tabelas:** leads (READ/DELETE scoped), cleanup_logs (INSERT com org_id)
 **Google:** Sheets API v4 (append rows)
-**Secrets:** GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY, CLEANUP_SPREADSHEET_ID
+**Org-aware:** Usa credenciais Google da organizacao (fallback para env vars globais)
 
 ### 6.4 import-leads-sheet
 
 **Proposito:** Importar leads de Google Sheets com mapeamento, deduplicacao e paginacao
 **Auth:** Bearer JWT + role = admin/lider
-**Tabelas:** funnels (READ/UPDATE), leads (READ/INSERT)
+**Tabelas:** funnels (READ scoped), leads (READ/INSERT com org_id)
 **Google:** Sheets API v4 (read data)
 **Acoes:** `import`, `fetch-headers`, `test-connection`, `update-dates`
 **Paginacao:** 2000 linhas por requisicao
+**Org-aware:** Filtra funis pela organizacao, leads criados com org_id
 
 ### 6.5 sync-google-calendar
 
@@ -429,6 +481,15 @@ Todas as 5 funcoes requerem `verify_jwt = true` (config.toml).
 **Tabelas:** appointments (READ/UPDATE)
 **Google:** Calendar API v3 (create/update/delete events)
 **Acoes:** `create`, `update`, `delete`
+
+### 6.6 webhook-dispatcher (NOVA)
+
+**Proposito:** Despachar webhooks HTTP para URLs registradas por organizacao
+**Auth:** Bearer JWT
+**Tabelas:** webhook_subscriptions (READ), webhook_logs (INSERT)
+**Seguranca:** HMAC-SHA256 signature no header `X-Webhook-Signature`
+**Timeout:** 10 segundos por delivery
+**Paralelismo:** Entrega para todas as subscriptions ativas em paralelo
 
 ---
 
@@ -481,4 +542,5 @@ idx_activity_logs_user, idx_activity_logs_created
 | `20260211133758_*.sql` | 11/02 | Motor de qualificacao |
 | `20260212132515_*.sql` | 12/02 | Campo import_from_date |
 | `20260212135353_*.sql` | 12/02 | Campo form_filled_at |
+| `20260304000000_*.sql` | 04/03 | **Multi-tenancy**: organizations, organization_id em 15 tabelas, RLS reescrita, webhooks, api_keys |
 | `complete_migration.sql` | 03/03 | Snapshot completo consolidado |

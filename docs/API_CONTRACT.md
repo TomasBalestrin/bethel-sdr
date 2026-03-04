@@ -1,10 +1,13 @@
 # Bethel SDR — Contrato de Integracao (API Contract)
 
-**Versao:** 2.0
+**Versao:** 3.0 (Multi-Tenant)
 **Base URL:** `https://{PROJECT_ID}.supabase.co`
 **Autenticacao:** Bearer JWT (Supabase Auth)
 
-Este documento descreve como o frontend se comunica com o backend e como servicos externos podem integrar com o Bethel SDR.
+Este documento descreve como o frontend se comunica com o backend e como servicos externos podem integrar com o Bethel SDR como microsservico.
+
+> **MULTI-TENANCY:** Todas as queries sao automaticamente filtradas por `organization_id` via RLS.
+> O usuario so ve dados da sua organizacao. Edge Functions resolvem `organization_id` a partir do perfil do usuario autenticado.
 
 ---
 
@@ -653,16 +656,79 @@ curl -X POST '{SUPABASE_URL}/functions/v1/distribute-leads' \
   }'
 ```
 
-### 5.4 Webhooks (Saida)
+### 5.4 Webhooks HTTP (Saida)
 
-O sistema gera notificacoes automaticas via triggers SQL. Um servico externo pode:
+O sistema suporta webhooks HTTP para notificar servicos externos sobre eventos.
 
-1. **Assinar Realtime** na tabela `notifications` para receber eventos
-2. **Ou consultar periodicamente** `GET /rest/v1/notifications?read=eq.false&order=created_at.desc`
+#### Registrar webhook
 
-Eventos gerados automaticamente:
-- Lead atribuido a SDR (`on_lead_assignment`)
-- Appointment criado (`on_appointment_created`)
+```bash
+curl -X POST '{SUPABASE_URL}/rest/v1/webhook_subscriptions' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'apikey: {ANON_KEY}' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "organization_id": "{ORG_UUID}",
+    "event_type": "lead.created",
+    "target_url": "https://sistema-mae.com/webhooks/bethel",
+    "secret": "whsec_minha_chave_secreta_256bits",
+    "active": true
+  }'
+```
+
+#### Eventos disponiveis
+
+| Evento | Quando disparado |
+|---|---|
+| `lead.created` | Novo lead inserido |
+| `lead.updated` | Lead atualizado (status, classificacao, etc) |
+| `lead.assigned` | Lead atribuido a um SDR |
+| `lead.qualified` | Lead qualificado automaticamente |
+| `lead.cleaned` | Lead arquivado (cleanup) |
+| `appointment.created` | Agendamento criado |
+| `appointment.updated` | Agendamento atualizado |
+| `appointment.completed` | Call realizada (resultado registrado) |
+| `distribution.executed` | Distribuicao de leads executada |
+| `import.completed` | Import de Google Sheets concluido |
+
+#### Formato do payload recebido
+
+```json
+{
+  "event_type": "lead.assigned",
+  "organization_id": "uuid",
+  "data": {
+    "lead_id": "uuid",
+    "lead_name": "Joao Silva",
+    "assigned_sdr_id": "uuid",
+    "assigned_sdr_name": "Maria"
+  },
+  "timestamp": "2026-03-04T14:30:00Z"
+}
+```
+
+#### Verificacao de assinatura
+
+```python
+import hmac, hashlib
+
+received_signature = request.headers['X-Webhook-Signature']  # sha256=abc123...
+expected = 'sha256=' + hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()
+assert hmac.compare_digest(received_signature, expected)
+```
+
+#### Disparar webhook manualmente (Edge Function)
+
+```bash
+curl -X POST '{SUPABASE_URL}/functions/v1/webhook-dispatcher' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "event_type": "lead.created",
+    "organization_id": "{ORG_UUID}",
+    "data": { "lead_id": "uuid", "lead_name": "Teste" }
+  }'
+```
 
 ### 5.5 Webhooks (Entrada)
 
@@ -670,6 +736,38 @@ Para receber dados de servicos externos:
 1. Criar lead via PostgREST (trigger de qualificacao executa automaticamente)
 2. Usar Edge Function `import-leads-sheet` para importacao em batch
 3. Para integracao customizada: criar nova Edge Function em `supabase/functions/`
+
+### 5.6 Multi-Tenancy
+
+Todas as operacoes sao automaticamente isoladas por organizacao:
+
+```
+Usuario autentica → profiles.organization_id → RLS filtra tudo
+```
+
+- **PostgREST**: RLS usa `my_org()` para filtrar automaticamente
+- **Edge Functions**: Resolvem `organization_id` do perfil do usuario e escopam queries
+- **Webhooks**: Isolados por organizacao (cada org tem suas subscriptions)
+
+#### Criar organizacao (via service role)
+
+```bash
+curl -X POST '{SUPABASE_URL}/rest/v1/organizations' \
+  -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+  -H 'apikey: {ANON_KEY}' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "Empresa XYZ",
+    "slug": "empresa-xyz",
+    "settings": {
+      "timezone": "America/Sao_Paulo",
+      "locale": "pt-BR",
+      "default_appointment_duration": 90,
+      "max_leads_per_page": 50,
+      "cleanup_retention_hours": 24
+    }
+  }'
+```
 
 ---
 
@@ -679,8 +777,8 @@ Para receber dados de servicos externos:
 |---|---|---|
 | 400 | Bad Request | Filtro com valor de enum invalido, campo obrigatorio faltando |
 | 401 | Unauthorized | Token JWT expirado ou ausente |
-| 403 | Forbidden | Role insuficiente (ex: SDR tentando acessar admin) |
-| 404 | Not Found | Registro nao existe |
+| 403 | Forbidden | Role insuficiente (ex: SDR tentando acessar admin) ou organizacao errada |
+| 404 | Not Found | Registro nao existe ou pertence a outra organizacao |
 | 406 | Not Acceptable | Header `Accept` invalido no PostgREST |
 | 409 | Conflict | Violacao de UNIQUE constraint |
 | 500 | Internal Error | Erro na Edge Function ou trigger |
@@ -691,10 +789,12 @@ Para receber dados de servicos externos:
 
 | Aspecto | Limite | Nota |
 |---|---|---|
-| Paginacao de leads | 50/pagina (default) | Configuravel via `pageSize` |
+| Paginacao de leads | 50/pagina (default) | Configuravel via `pageSize` ou `organizations.settings` |
 | Import Google Sheets | 2000 linhas/request | Suporta paginacao automatica |
 | Stats de leads | 5000 registros max | `.limit(5000)` no `useLeadsStats` |
 | Retry de queries | 2 tentativas | Backoff exponencial (1s, 2s) |
 | staleTime | 30 segundos | Dados considerados frescos por 30s |
-| Appointment duration | 90 min (default) | Configuravel por agendamento |
-| Retention cleanup | 24 horas (default) | Leads mais antigos que X horas sao elegiveis |
+| Appointment duration | 90 min (default) | Configuravel por org via `organizations.settings` |
+| Retention cleanup | 24 horas (default) | Configuravel por org via `organizations.settings` |
+| Webhook timeout | 10 segundos | Timeout por request de webhook |
+| Webhook logs | Ultimos 1000 chars | Response body truncado |
