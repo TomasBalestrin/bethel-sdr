@@ -1,13 +1,15 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { AppRole, Profile } from '@/types/database';
+import { AppRole, Profile, Organization } from '@/types/database';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   role: AppRole | null;
+  organization: Organization | null;
+  organizationId: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, name: string, role?: AppRole) => Promise<{ error: Error | null }>;
@@ -26,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
+  const [organization, setOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -74,6 +77,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Error fetching profile:', profileResult.error);
       } else {
         setProfile(profileResult.data as Profile);
+
+        // Fetch organization if profile has org_id
+        const orgId = (profileResult.data as Profile)?.organization_id;
+        if (orgId) {
+          const { data: orgData, error: orgError } = await supabase
+            .from('organizations')
+            .select('*')
+            .eq('id', orgId)
+            .maybeSingle();
+
+          if (orgError) {
+            console.error('Error fetching organization:', orgError);
+          } else {
+            setOrganization(orgData as Organization);
+          }
+        }
       }
 
       if (roleResult.error) {
@@ -119,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setRole(null);
+    setOrganization(null);
   };
 
   const isAdmin = role === 'admin';
@@ -134,6 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         profile,
         role,
+        organization,
+        organizationId: profile?.organization_id ?? null,
         loading,
         signIn,
         signUp,

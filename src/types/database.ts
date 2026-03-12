@@ -1,9 +1,76 @@
 // Types matching our Supabase database schema
 
 export type AppRole = 'admin' | 'lider' | 'sdr' | 'closer';
+
+// ============================================================
+// Organization (multi-tenancy)
+// ============================================================
+
+export interface OrganizationSettings {
+  timezone: string;
+  locale: string;
+  default_appointment_duration: number;
+  max_leads_per_page: number;
+  cleanup_retention_hours: number;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  settings: OrganizationSettings;
+  google_service_account_email: string | null;
+  google_service_account_key_ref: string | null;
+  cleanup_spreadsheet_id: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Webhook system
+export interface WebhookSubscription {
+  id: string;
+  organization_id: string;
+  event_type: string;
+  target_url: string;
+  secret: string;
+  headers: Record<string, string>;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookLog {
+  id: string;
+  subscription_id: string | null;
+  organization_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  response_status: number | null;
+  response_body: string | null;
+  delivered: boolean;
+  attempts: number;
+  last_attempt_at: string | null;
+  created_at: string;
+}
+
+// API Keys (service-to-service auth)
+export interface ApiKey {
+  id: string;
+  organization_id: string;
+  name: string;
+  key_prefix: string;
+  permissions: string[];
+  active: boolean;
+  last_used_at: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  created_at: string;
+}
 export type LeadClassification = 'diamante' | 'ouro' | 'prata' | 'bronze';
 export type LeadStatus = 'novo' | 'em_atendimento' | 'agendado' | 'concluido';
-export type AppointmentStatus = 'agendado' | 'reagendado' | 'realizado' | 'nao_compareceu';
+export type AppointmentStatus = 'agendado' | 'reagendado' | 'realizado' | 'nao_compareceu' | 'cancelado';
+export type SdrTipo = 'sdr' | 'social_selling';
 
 export interface Profile {
   id: string;
@@ -12,6 +79,8 @@ export interface Profile {
   email: string;
   timezone: string;
   active: boolean;
+  organization_id: string | null;
+  sdr_type: SdrTipo;
   created_at: string;
   updated_at: string;
 }
@@ -30,6 +99,7 @@ export interface Funnel {
   sheet_name: string | null;
   column_mapping: Record<string, string> | null;
   active: boolean;
+  category: string | null;
   created_at: string;
   updated_at: string;
   // Sync fields
@@ -68,6 +138,7 @@ export interface Lead {
   distribution_origin: 'manual' | 'automatic' | null;
   crm_column_id: string | null;
   form_filled_at: string | null;
+  organization_id: string | null;
 }
 
 export interface Niche {
@@ -122,7 +193,44 @@ export interface CrmColumn {
   position: number;
   color: string;
   editable: boolean;
+  funnel_id: string | null;
   created_at: string;
+}
+
+// Goals
+export type GoalPeriod = 'diario' | 'semanal' | 'mensal';
+export type GoalMetric = 'agendamentos' | 'conversoes' | 'valor_gerado' | 'leads_contatados';
+
+export interface Goal {
+  id: string;
+  organization_id: string | null;
+  user_id: string;
+  metric: GoalMetric;
+  target_value: number;
+  current_value: number;
+  period: GoalPeriod;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// SDR Metrics (materialized view)
+export interface SdrMetrics {
+  sdr_id: string;
+  organization_id: string | null;
+  sdr_name: string;
+  sdr_type: SdrTipo;
+  total_leads: number;
+  leads_em_atendimento: number;
+  leads_agendados: number;
+  leads_concluidos: number;
+  total_appointments: number;
+  conversions: number;
+  total_value: number;
+  scheduling_rate: number;
+  conversion_rate: number;
+  refreshed_at: string;
 }
 
 export interface LeadActivity {

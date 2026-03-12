@@ -448,7 +448,8 @@ function mapRowToLead(
   mapping: ColumnMapping,
   funnelId: string,
   rowIndex: number,
-  sheetUrl: string
+  sheetUrl: string,
+  organizationId?: string
 ): Record<string, unknown> | null {
   const getColumnValue = (columnName: string | undefined): string | undefined => {
     if (!columnName) return undefined;
@@ -483,6 +484,7 @@ function mapRowToLead(
       const parsed = dateVal ? parseLeadDate(dateVal) : null;
       return parsed ? parsed.toISOString() : null;
     })(),
+    ...(organizationId ? { organization_id: organizationId } : {}),
   };
 }
 
@@ -576,6 +578,21 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: 'Permissão negada: apenas admin ou líder' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user's organization
+    const { data: userProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single();
+
+    const orgId = userProfile?.organization_id;
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Organização não encontrada' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -777,13 +794,14 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch funnels to sync
+    // Fetch funnels to sync (scoped by org)
     let funnelsQuery = supabase
       .from('funnels')
       .select('*')
       .not('google_sheet_url', 'is', null)
       .not('sheet_name', 'is', null)
-      .eq('active', true);
+      .eq('active', true)
+      .eq('organization_id', orgId);
 
     if (funnelId) {
       funnelsQuery = funnelsQuery.eq('id', funnelId);
@@ -904,7 +922,8 @@ Deno.serve(async (req) => {
           funnel.column_mapping,
           funnel.id,
           absoluteRowIndex,
-          funnel.google_sheet_url
+          funnel.google_sheet_url,
+          orgId
         );
 
         if (lead) {

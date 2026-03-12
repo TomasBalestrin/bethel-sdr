@@ -17,6 +17,7 @@ import { CloserPerformanceChart } from '@/components/reports/CloserPerformanceCh
 import { FunnelComparisonChart } from '@/components/reports/FunnelComparisonChart';
 import { FunnelMetricsCards } from '@/components/reports/FunnelMetricsCards';
 import { ClassificationPieChart } from '@/components/reports/ClassificationPieChart';
+import { SDRWeeklyComparisonChart } from '@/components/reports/SDRWeeklyComparisonChart';
 import { RankingTable } from '@/components/reports/RankingTable';
 import {
   useSDRStats,
@@ -26,6 +27,7 @@ import {
   useCloserRankings,
   useAllSDRsPerformance,
   useAllClosersPerformance,
+  useSDRWeeklyComparison,
   type DateRange,
 } from '@/hooks/useReportsStats';
 import {
@@ -56,6 +58,7 @@ export default function Relatorios() {
   const { data: sdrRankings, isLoading: sdrRankingsLoading, isError: sdrRankingsError, refetch: refetchSdrRankings } = useSDRRankings(dateRange);
   const { data: closerRankings, isLoading: closerRankingsLoading, isError: closerRankingsError, refetch: refetchCloserRankings } = useCloserRankings(dateRange);
   const { data: allSDRsPerformance, isLoading: allSDRsLoading, isError: allSDRsError, refetch: refetchAllSDRs } = useAllSDRsPerformance(dateRange);
+  const { data: weeklyComparison, isLoading: weeklyLoading } = useSDRWeeklyComparison(dateRange);
   const { data: allClosersPerformance, isLoading: allClosersLoading, isError: allClosersError, refetch: refetchAllClosers } = useAllClosersPerformance(dateRange);
 
   // Unified loading/error per tab
@@ -236,6 +239,11 @@ export default function Relatorios() {
                   <SDRPerformanceChart data={allSDRsPerformance} isLoading={false} />
                   <ClassificationPieChart data={sdrStats?.classificacaoLeads} isLoading={false} />
                 </div>
+                <SDRWeeklyComparisonChart
+                  currentWeek={weeklyComparison?.currentWeek}
+                  previousWeek={weeklyComparison?.previousWeek}
+                  isLoading={weeklyLoading}
+                />
               </>
             )}
           </TabsContent>

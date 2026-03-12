@@ -216,9 +216,31 @@ Deno.serve(async (req) => {
       )
     }
 
-    const googleEmail = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL')
+    // Get user's organization
+    const { data: userProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single()
+
+    const orgId = userProfile?.organization_id
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Organização não encontrada' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Try org-level credentials, fall back to global env vars
+    const { data: orgData } = await supabaseAdmin
+      .from('organizations')
+      .select('google_service_account_email, cleanup_spreadsheet_id')
+      .eq('id', orgId)
+      .single()
+
+    const googleEmail = orgData?.google_service_account_email || Deno.env.get('GOOGLE_SERVICE_ACCOUNT_EMAIL')
     const googlePrivateKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY')
-    const spreadsheetId = Deno.env.get('CLEANUP_SPREADSHEET_ID')
+    const spreadsheetId = orgData?.cleanup_spreadsheet_id || Deno.env.get('CLEANUP_SPREADSHEET_ID')
 
     // Validate required secrets
     if (!googleEmail || !googlePrivateKey || !spreadsheetId) {
@@ -258,7 +280,7 @@ Deno.serve(async (req) => {
     const cutoffDate = new Date()
     cutoffDate.setHours(cutoffDate.getHours() - retentionHours)
 
-    // Fetch eligible leads
+    // Fetch eligible leads (scoped by org)
     const { data: leads, error: fetchError } = await supabase
       .from('leads')
       .select(`
@@ -266,6 +288,7 @@ Deno.serve(async (req) => {
         funnel:funnels(name),
         assigned_sdr:profiles!leads_assigned_sdr_id_fkey(name)
       `)
+      .eq('organization_id', orgId)
       .or('classification.eq.bronze,qualification.eq.nao_fit,classification.eq.nao_fit')
       .lt('updated_at', cutoffDate.toISOString())
 
@@ -380,12 +403,13 @@ Deno.serve(async (req) => {
           .insert({
             lead_id: lead.id,
             lead_data: lead,
-            cleanup_reason: lead.qualification === 'nao_fit' || lead.classification === 'nao_fit' 
-              ? 'Classificação Não-Fit' 
+            cleanup_reason: lead.qualification === 'nao_fit' || lead.classification === 'nao_fit'
+              ? 'Classificação Não-Fit'
               : 'Classificação Bronze',
             google_sheet_url: sheetUrl,
             sheet_name: sheetName,
-            exported_at: new Date().toISOString()
+            exported_at: new Date().toISOString(),
+            organization_id: orgId
           })
 
         if (logError) {

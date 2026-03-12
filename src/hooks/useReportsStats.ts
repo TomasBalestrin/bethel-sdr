@@ -415,6 +415,72 @@ export function useAllSDRsPerformance(dateRange: DateRange = defaultDateRange) {
   });
 }
 
+// Weekly comparison: current week vs previous week SDR performance
+export function useSDRWeeklyComparison(dateRange: DateRange = defaultDateRange) {
+  return useQuery({
+    queryKey: ['sdr-weekly-comparison', dateRange.from, dateRange.to],
+    queryFn: async () => {
+      // Calculate current and previous week ranges
+      const currentEnd = endOfDay(dateRange.to);
+      const daysDiff = Math.ceil((dateRange.to.getTime() - dateRange.from.getTime()) / (1000 * 60 * 60 * 24));
+      const currentStart = startOfDay(dateRange.from);
+      const previousEnd = new Date(currentStart.getTime() - 1);
+      const previousStart = startOfDay(subDays(previousEnd, daysDiff));
+
+      const { data: sdrRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'sdr');
+      if (rolesError) throw rolesError;
+
+      const sdrIds = sdrRoles?.map(r => r.user_id) || [];
+      if (sdrIds.length === 0) return { currentWeek: [], previousWeek: [] };
+
+      // 5 parallel queries
+      const [profilesResult, currentLeads, previousLeads, currentAppts, previousAppts] = await Promise.all([
+        supabase.from('profiles').select('user_id, name').in('user_id', sdrIds).eq('active', true),
+        supabase.from('leads').select('id, status, assigned_sdr_id')
+          .in('assigned_sdr_id', sdrIds)
+          .gte('created_at', currentStart.toISOString()).lte('created_at', currentEnd.toISOString()),
+        supabase.from('leads').select('id, status, assigned_sdr_id')
+          .in('assigned_sdr_id', sdrIds)
+          .gte('created_at', previousStart.toISOString()).lte('created_at', previousEnd.toISOString()),
+        supabase.from('appointments').select('id, converted, lead_id')
+          .gte('created_at', currentStart.toISOString()).lte('created_at', currentEnd.toISOString()),
+        supabase.from('appointments').select('id, converted, lead_id')
+          .gte('created_at', previousStart.toISOString()).lte('created_at', previousEnd.toISOString()),
+      ]);
+
+      if (profilesResult.error) throw profilesResult.error;
+
+      const profiles = profilesResult.data || [];
+      const curLeads = currentLeads.data || [];
+      const prevLeads = previousLeads.data || [];
+      const curAppts = currentAppts.data || [];
+      const prevAppts = previousAppts.data || [];
+
+      const buildWeek = (leads: typeof curLeads, appts: typeof curAppts) => {
+        return profiles.map((profile) => {
+          const pLeads = leads.filter(l => l.assigned_sdr_id === profile.user_id);
+          const leadIds = new Set(pLeads.map(l => l.id));
+          const pAppts = appts.filter(a => a.lead_id && leadIds.has(a.lead_id));
+          return {
+            name: profile.name,
+            atribuidos: pLeads.length,
+            agendados: pLeads.filter(l => l.status === 'agendado').length,
+            convertidos: pAppts.filter(a => a.converted).length,
+          };
+        });
+      };
+
+      return {
+        currentWeek: buildWeek(curLeads, curAppts),
+        previousWeek: buildWeek(prevLeads, prevAppts),
+      };
+    },
+  });
+}
+
 // Optimized: 3 queries total instead of N+2 (N = number of closers)
 export function useAllClosersPerformance(dateRange: DateRange = defaultDateRange) {
   return useQuery({

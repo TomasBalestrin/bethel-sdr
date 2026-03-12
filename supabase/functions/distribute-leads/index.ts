@@ -71,6 +71,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Get user's organization
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .single();
+
+    const orgId = userProfile?.organization_id;
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Organização não encontrada para o usuário' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body: DistributeRequest = await req.json();
     console.log('Distribution request:', JSON.stringify(body));
 
@@ -112,12 +127,13 @@ Deno.serve(async (req) => {
       throw new Error('Nenhum SDR selecionado para distribuição');
     }
 
-    // Fetch active SDRs with their profiles
+    // Fetch active SDRs with their profiles (scoped by org)
     const { data: sdrs, error: sdrsError } = await supabase
       .from('profiles')
       .select('id, name, email')
       .in('id', sdrIds)
-      .eq('active', true);
+      .eq('active', true)
+      .eq('organization_id', orgId);
 
     if (sdrsError) {
       console.error('Error fetching SDRs:', sdrsError);
@@ -155,12 +171,13 @@ Deno.serve(async (req) => {
 
     console.log('SDR workload:', JSON.stringify(workloadMap));
 
-    // Build query for leads to distribute
+    // Build query for leads to distribute (scoped by org)
     let leadsQuery = supabase
       .from('leads')
       .select('id, full_name, funnel_id, classification')
       .eq('status', 'novo')
-      .is('assigned_sdr_id', null);
+      .is('assigned_sdr_id', null)
+      .eq('organization_id', orgId);
 
     // If specific lead IDs provided
     if (body.leadIds && body.leadIds.length > 0) {
@@ -282,6 +299,8 @@ Deno.serve(async (req) => {
         .update({
           assigned_sdr_id: assignment.sdrId,
           status: 'em_atendimento',
+          distributed_at: new Date().toISOString(),
+          distribution_origin: ruleId ? 'automatic' : 'manual',
         })
         .eq('id', assignment.leadId);
 
@@ -303,6 +322,7 @@ Deno.serve(async (req) => {
         classifications: classifications.length > 0 ? classifications : null,
         lead_ids: assignments.map(a => a.leadId),
         workload_snapshot: workloadMap,
+        organization_id: orgId,
       })
       .select('id')
       .single();
