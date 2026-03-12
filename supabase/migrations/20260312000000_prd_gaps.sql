@@ -28,7 +28,7 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS sdr_type sdr_tipo DEFAULT 'sdr';
 -- ============================================================
 CREATE TABLE IF NOT EXISTS goals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   metric TEXT NOT NULL,  -- e.g. 'agendamentos', 'conversoes', 'valor_gerado', 'leads_contatados'
   target_value NUMERIC NOT NULL,
@@ -44,11 +44,11 @@ CREATE TABLE IF NOT EXISTS goals (
 ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "goals_select_own_org" ON goals
-  FOR SELECT USING (organization_id = (SELECT my_org()));
+  FOR SELECT USING (organization_id = (SELECT public.my_org()));
 
 CREATE POLICY "goals_insert_admin" ON goals
   FOR INSERT WITH CHECK (
-    organization_id = (SELECT my_org())
+    organization_id = (SELECT public.my_org())
     AND EXISTS (
       SELECT 1 FROM user_roles
       WHERE user_id = auth.uid()
@@ -58,7 +58,7 @@ CREATE POLICY "goals_insert_admin" ON goals
 
 CREATE POLICY "goals_update_admin" ON goals
   FOR UPDATE USING (
-    organization_id = (SELECT my_org())
+    organization_id = (SELECT public.my_org())
     AND EXISTS (
       SELECT 1 FROM user_roles
       WHERE user_id = auth.uid()
@@ -68,7 +68,7 @@ CREATE POLICY "goals_update_admin" ON goals
 
 CREATE POLICY "goals_delete_admin" ON goals
   FOR DELETE USING (
-    organization_id = (SELECT my_org())
+    organization_id = (SELECT public.my_org())
     AND EXISTS (
       SELECT 1 FROM user_roles
       WHERE user_id = auth.uid()
@@ -80,7 +80,7 @@ CREATE POLICY "goals_delete_admin" ON goals
 CREATE TRIGGER set_goals_updated_at
   BEFORE UPDATE ON goals
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at();
+  EXECUTE FUNCTION public.update_updated_at_column();
 
 -- ============================================================
 -- 5. Create sdr_metrics materialized view
