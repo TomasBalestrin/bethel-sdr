@@ -20,6 +20,7 @@ export const APPOINTMENT_STATUS_COLORS = {
   reagendado: 'bg-warning/15 text-warning',
   realizado: 'bg-success/15 text-success',
   nao_compareceu: 'bg-destructive/15 text-destructive',
+  cancelado: 'bg-muted text-muted-foreground',
 } as const;
 
 // Role labels
@@ -52,6 +53,13 @@ export const APPOINTMENT_STATUS_LABELS = {
   reagendado: 'Reagendado',
   realizado: 'Realizado',
   nao_compareceu: 'Não Compareceu',
+  cancelado: 'Cancelado',
+} as const;
+
+// SDR type labels
+export const SDR_TYPE_LABELS = {
+  sdr: 'SDR',
+  social_selling: 'Social Selling',
 } as const;
 
 // Days of week

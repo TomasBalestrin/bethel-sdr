@@ -69,7 +69,8 @@ export interface ApiKey {
 }
 export type LeadClassification = 'diamante' | 'ouro' | 'prata' | 'bronze';
 export type LeadStatus = 'novo' | 'em_atendimento' | 'agendado' | 'concluido';
-export type AppointmentStatus = 'agendado' | 'reagendado' | 'realizado' | 'nao_compareceu';
+export type AppointmentStatus = 'agendado' | 'reagendado' | 'realizado' | 'nao_compareceu' | 'cancelado';
+export type SdrTipo = 'sdr' | 'social_selling';
 
 export interface Profile {
   id: string;
@@ -79,6 +80,7 @@ export interface Profile {
   timezone: string;
   active: boolean;
   organization_id: string | null;
+  sdr_type: SdrTipo;
   created_at: string;
   updated_at: string;
 }
@@ -97,6 +99,7 @@ export interface Funnel {
   sheet_name: string | null;
   column_mapping: Record<string, string> | null;
   active: boolean;
+  category: string | null;
   created_at: string;
   updated_at: string;
   // Sync fields
@@ -190,7 +193,44 @@ export interface CrmColumn {
   position: number;
   color: string;
   editable: boolean;
+  funnel_id: string | null;
   created_at: string;
+}
+
+// Goals
+export type GoalPeriod = 'diario' | 'semanal' | 'mensal';
+export type GoalMetric = 'agendamentos' | 'conversoes' | 'valor_gerado' | 'leads_contatados';
+
+export interface Goal {
+  id: string;
+  organization_id: string | null;
+  user_id: string;
+  metric: GoalMetric;
+  target_value: number;
+  current_value: number;
+  period: GoalPeriod;
+  start_date: string;
+  end_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// SDR Metrics (materialized view)
+export interface SdrMetrics {
+  sdr_id: string;
+  organization_id: string | null;
+  sdr_name: string;
+  sdr_type: SdrTipo;
+  total_leads: number;
+  leads_em_atendimento: number;
+  leads_agendados: number;
+  leads_concluidos: number;
+  total_appointments: number;
+  conversions: number;
+  total_value: number;
+  scheduling_rate: number;
+  conversion_rate: number;
+  refreshed_at: string;
 }
 
 export interface LeadActivity {

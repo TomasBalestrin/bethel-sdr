@@ -316,6 +316,7 @@ export function useAppointmentStats() {
       const agendados = data.filter(a => a.status === 'agendado').length;
       const realizados = data.filter(a => a.status === 'realizado').length;
       const naoCompareceu = data.filter(a => a.status === 'nao_compareceu').length;
+      const cancelados = data.filter(a => a.status === 'cancelado').length;
       const convertidos = data.filter(a => a.converted).length;
       const valorTotal = data.reduce((sum, a) => sum + (a.conversion_value || 0), 0);
 
@@ -324,6 +325,7 @@ export function useAppointmentStats() {
         agendados,
         realizados,
         naoCompareceu,
+        cancelados,
         convertidos,
         valorTotal,
         taxaComparecimento: total > 0 ? (realizados / total) * 100 : 0,

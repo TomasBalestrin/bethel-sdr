@@ -83,7 +83,7 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
 
   if (!appointment) return null;
 
-  const isCompleted = appointment.status === 'realizado' || appointment.status === 'nao_compareceu';
+  const isCompleted = appointment.status === 'realizado' || appointment.status === 'nao_compareceu' || appointment.status === 'cancelado';
 
   const handleReschedule = () => {
     if (!rescheduleDate) return;
@@ -123,7 +123,7 @@ export function AppointmentDetailsModal({ appointment, open, onOpenChange }: App
 
   const handleCancel = () => {
     updateAppointment.mutate(
-      { id: appointment.id, status: 'nao_compareceu' as const },
+      { id: appointment.id, status: 'cancelado' as const },
       {
         onSuccess: () => {
           onOpenChange(false);
